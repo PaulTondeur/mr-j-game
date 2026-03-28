@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Dit is Mr. J's Game — een browsergame gebouwd in Mario-achtige stijl.
+Dit is Mr. J's Game — een 3D browsergame gebouwd in Mario-achtige stijl met Three.js.
 
 ## Commands
 
@@ -13,15 +13,15 @@ Dit is Mr. J's Game — een browsergame gebouwd in Mario-achtige stijl.
 
 ## Architecture
 
-Vanilla JavaScript met Vite (geen framework). Alles draait op een `<canvas>`.
+Three.js + Vite. 3D bird's eye / third-person camera.
 
-- `index.html` — entry point, laadt canvas + `src/main.js`
-- `src/main.js` — game loop, keyboard input, verbindt canvas met game
-- `src/game.js` — game state: update + draw cycle, beheert alle game objecten
-- `src/speler.js` — de speler (blokje), beweegt met pijltjestoetsen
-
-**Patroon:** elk game object is een factory function die een object retourneert met `update(keys)` en `draw(ctx)` methods. Nieuwe objecten (vijanden, items, etc.) volgen dit patroon.
+- `index.html` — entry point met HUD overlay
+- `src/main.js` — game loop, keyboard input
+- `src/game.js` — game state, Three.js scene setup, camera, speler logica, level management
+- `src/wereld3d.js` — 3D objecten: wereld tiles, Mario model, paddestoelen, finish, portalen
+- `src/levels.js` — 10 eiland-levels als grid kaarten (~ = water, . = grond, = = brug, S/F/P)
+- `src/themas.js` — visuele thema's per level (kleuren, decoraties)
 
 ## Taal
 
-Code variabelen en comments zijn in het **Nederlands** (speler, snelheid, grootte, etc.) voor leesbaarheid.
+Code variabelen en comments zijn in het **Nederlands** voor leesbaarheid.
