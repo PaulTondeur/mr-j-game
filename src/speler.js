@@ -1,11 +1,41 @@
+// Mario pixel art (12x16 pixels, opgeschaald)
+const marioPixels = [
+  '...rrrrr...',
+  '..rrrrrrrrr',
+  '..bbbhhbh..',
+  '.bhbhhhbhhh',
+  '.bhbbhhhbhh',
+  '.bbhhhbbbb.',
+  '...hhhhhh..',
+  '..rrbrrr...',
+  '.rrrbrbrrrr',
+  'rrrrbbbrrr.',
+  'hhrbbbbrhh.',
+  'hhhbbbbbhh.',
+  'hhbb..bbhh.',
+  '..bbb..bbb.',
+  '.bbb....bbb',
+  '...........',
+]
+
+const kleuren = {
+  r: '#ff0000', // rood (pet + shirt)
+  b: '#8B4513', // bruin (haar + schoenen)
+  h: '#ffcc99', // huid
+  '.': null,    // doorzichtig
+}
+
 export function createSpeler(x, y) {
-  const grootte = 40
+  const pixelGrootte = 3
   const snelheid = 5
-  const kleur = '#00ff88'
+  const breedte = marioPixels[0].length * pixelGrootte
+  const hoogte = marioPixels.length * pixelGrootte
 
   return {
     x,
     y,
+    breedte,
+    hoogte,
 
     update(keys) {
       if (keys['ArrowUp']) this.y -= snelheid
@@ -15,8 +45,23 @@ export function createSpeler(x, y) {
     },
 
     draw(ctx) {
-      ctx.fillStyle = kleur
-      ctx.fillRect(this.x - grootte / 2, this.y - grootte / 2, grootte, grootte)
+      const startX = this.x - breedte / 2
+      const startY = this.y - hoogte / 2
+
+      for (let rij = 0; rij < marioPixels.length; rij++) {
+        for (let kolom = 0; kolom < marioPixels[rij].length; kolom++) {
+          const kleur = kleuren[marioPixels[rij][kolom]]
+          if (kleur) {
+            ctx.fillStyle = kleur
+            ctx.fillRect(
+              startX + kolom * pixelGrootte,
+              startY + rij * pixelGrootte,
+              pixelGrootte,
+              pixelGrootte
+            )
+          }
+        }
+      }
     },
   }
 }
