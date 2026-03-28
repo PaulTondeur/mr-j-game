@@ -1,107 +1,111 @@
 import { createSpeler } from './speler.js'
-import { createDoel } from './doel.js'
 import { createPaddestoel } from './paddestoel.js'
 import { levels } from './levels.js'
+import { themas } from './themas.js'
+import { tekenWereld, tekenSprite, tekenSpeler } from './raycaster.js'
+
+// Starthal
+const startKaart = [
+  '##########################',
+  '#........................#',
+  '#..1..2..3..4..5........#',
+  '#........................#',
+  '#..6..7..8..9..0........#',
+  '#........................#',
+  '#........................#',
+  '#...........S............#',
+  '##########################',
+]
+
+const portalen = []
+let startPos = { x: 12.5, y: 7.5 }
+
+for (let rij = 0; rij < startKaart.length; rij++) {
+  for (let kolom = 0; kolom < startKaart[rij].length; kolom++) {
+    const cel = startKaart[rij][kolom]
+    if (cel === 'S') startPos = { x: kolom + 0.5, y: rij + 0.5 }
+    if (cel >= '0' && cel <= '9') {
+      portalen.push({
+        x: kolom + 0.5, y: rij + 0.5,
+        level: cel === '0' ? 9 : parseInt(cel) - 1,
+        label: cel === '0' ? '10' : cel,
+      })
+    }
+  }
+}
 
 export function createGame() {
-  let scherm = 'start' // 'start', 'level', of 'gameover'
+  let scherm = 'start'
   let levelNummer = 0
-  const speler = createSpeler(400, 450)
+  let tijd = 0
+  const speler = createSpeler(startPos.x, startPos.y)
 
-  // 10 rondjes op het startscherm, 2 rijen van 5
-  const doelen = levels.map((level, i) => {
-    const kolom = i % 5
-    const rij = Math.floor(i / 5)
-    const x = 160 + kolom * 130
-    const y = 200 + rij * 120
-    return { doel: createDoel(x, y), level: i }
-  })
-
-  let huidigLevel = null
+  let kaart = null
   let paddestoelen = []
+  let finishPos = null
+
+  function parseKaart(level) {
+    let start, finish
+    const pads = []
+    for (let rij = 0; rij < level.kaart.length; rij++) {
+      for (let kolom = 0; kolom < level.kaart[rij].length; kolom++) {
+        const cel = level.kaart[rij][kolom]
+        if (cel === 'S') start = { x: kolom + 0.5, y: rij + 0.5 }
+        if (cel === 'F') finish = { x: kolom + 0.5, y: rij + 0.5 }
+        if (cel === 'P') pads.push({ x: kolom + 0.5, y: rij + 0.5 })
+      }
+    }
+    return { start, finish, paddestoelen: pads }
+  }
 
   function startLevel(nummer) {
     scherm = 'level'
     levelNummer = nummer
-    huidigLevel = levels[nummer]
-    speler.x = huidigLevel.spelerStart.x
-    speler.y = huidigLevel.spelerStart.y
-    paddestoelen = huidigLevel.paddestoelen.map((p) => createPaddestoel(p.x, p.y))
+    kaart = levels[nummer].kaart
+    const parsed = parseKaart(levels[nummer])
+    speler.x = parsed.start.x
+    speler.y = parsed.start.y
+    finishPos = parsed.finish
+    paddestoelen = parsed.paddestoelen.map((p) => createPaddestoel(p.x, p.y))
   }
 
   function naarStart() {
     scherm = 'start'
-    speler.x = 400
-    speler.y = 450
-  }
-
-  function raaktMuur(px, py, muren) {
-    const s = 15
-    for (const muur of muren) {
-      if (
-        px + s > muur.x &&
-        px - s < muur.x + muur.breedte &&
-        py + s > muur.y &&
-        py - s < muur.y + muur.hoogte
-      ) {
-        return true
-      }
-    }
-    return false
+    speler.x = startPos.x
+    speler.y = startPos.y
+    kaart = null
   }
 
   return {
     update(keys) {
+      tijd += 1 / 60
+
       if (scherm === 'gameover') {
-        if (keys[' ']) {
-          naarStart()
-        }
+        if (keys[' ']) naarStart()
         return
       }
 
       if (scherm === 'start') {
-        speler.update(keys)
-        for (const { doel, level } of doelen) {
-          if (doel.raaktSpeler(speler)) {
-            startLevel(level)
-            return
-          }
+        speler.update(keys, startKaart)
+        for (const p of portalen) {
+          const dx = speler.x - p.x
+          const dy = speler.y - p.y
+          if (Math.sqrt(dx * dx + dy * dy) < 0.5) { startLevel(p.level); return }
         }
       }
 
-      if (scherm === 'level' && huidigLevel) {
-        const oudeX = speler.x
-        const oudeY = speler.y
-
-        speler.update(keys)
-
-        if (raaktMuur(speler.x, speler.y, huidigLevel.muren)) {
-          speler.x = oudeX
-          speler.y = oudeY
+      if (scherm === 'level') {
+        speler.update(keys, kaart)
+        for (const p of paddestoelen) p.update(speler, kaart)
+        for (const p of paddestoelen) {
+          if (p.raaktSpeler(speler)) { scherm = 'gameover'; return }
         }
-
-        // Paddestoelen bewegen
-        for (const paddestoel of paddestoelen) {
-          paddestoel.update(speler, huidigLevel.muren)
-        }
-
-        // Paddestoel geraakt = game over!
-        for (const paddestoel of paddestoelen) {
-          if (paddestoel.raaktSpeler(speler)) {
-            scherm = 'gameover'
-            return
-          }
-        }
-
-        // Check finish
-        const finish = huidigLevel.finish
-        const dx = speler.x - finish.x
-        const dy = speler.y - finish.y
-        if (Math.sqrt(dx * dx + dy * dy) < 30) {
-          if (levelNummer + 1 < levels.length) {
-            startLevel(levelNummer + 1)
-          } else {
-            naarStart()
+        if (finishPos) {
+          const dx = speler.x - finishPos.x
+          const dy = speler.y - finishPos.y
+          if (Math.sqrt(dx * dx + dy * dy) < 0.5) {
+            if (levelNummer + 1 < levels.length) startLevel(levelNummer + 1)
+            else naarStart()
           }
         }
       }
@@ -111,71 +115,80 @@ export function createGame() {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       if (scherm === 'start') {
-        ctx.fillStyle = 'white'
-        ctx.font = 'bold 28px monospace'
-        ctx.textAlign = 'center'
-        ctx.fillText("Mr. J's Game", canvas.width / 2, 60)
-        ctx.font = '14px monospace'
-        ctx.fillText('Loop naar een rondje om een level te starten!', canvas.width / 2, 90)
+        tekenWereld(ctx, canvas, speler, startKaart, tijd)
 
-        for (const { doel, level } of doelen) {
-          doel.draw(ctx)
-          ctx.fillStyle = '#333'
-          ctx.font = 'bold 16px monospace'
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'middle'
-          ctx.fillText(level + 1, doel.x, doel.y)
+        for (const p of portalen) {
+          tekenSprite(ctx, canvas, speler, p.x, p.y, (c) => {
+            // Rondje op de grond
+            c.fillStyle = '#ffdd00'
+            c.beginPath()
+            c.ellipse(0, 0, 14, 14, 0, 0, Math.PI * 2)
+            c.fill()
+            c.strokeStyle = '#cc9900'
+            c.lineWidth = 2
+            c.stroke()
+            // Bordje
+            c.fillStyle = '#6b4226'
+            c.fillRect(18, -28, 4, 30)
+            c.fillStyle = '#dda54a'
+            c.fillRect(8, -32, 26, 16)
+            c.strokeStyle = '#8B4513'
+            c.lineWidth = 2
+            c.strokeRect(8, -32, 26, 16)
+            c.fillStyle = '#442200'
+            c.font = 'bold 12px monospace'
+            c.textAlign = 'center'
+            c.textBaseline = 'middle'
+            c.fillText('Lv ' + p.label, 21, -24)
+          })
         }
-        ctx.textBaseline = 'alphabetic'
-        ctx.textAlign = 'left'
 
-        speler.draw(ctx)
+        tekenSpeler(ctx, canvas, (c) => speler.draw(c))
+        tekenTitel(ctx, canvas, "Mr. J's Game", 'Loop naar een portaal!')
       }
 
-      if (scherm === 'level' && huidigLevel) {
-        // Muren tekenen
-        ctx.fillStyle = '#555'
-        for (const muur of huidigLevel.muren) {
-          ctx.fillRect(muur.x, muur.y, muur.breedte, muur.hoogte)
+      if (scherm === 'level') {
+        tekenWereld(ctx, canvas, speler, kaart, tijd, themas[levels[levelNummer].thema])
+
+        if (finishPos) {
+          tekenSprite(ctx, canvas, speler, finishPos.x, finishPos.y, (c) => {
+            c.fillStyle = '#ffdd00'
+            c.beginPath()
+            c.ellipse(0, 0, 16, 16, 0, 0, Math.PI * 2)
+            c.fill()
+            c.strokeStyle = '#cc9900'
+            c.lineWidth = 2
+            c.stroke()
+            c.fillStyle = '#442200'
+            c.font = 'bold 10px monospace'
+            c.textAlign = 'center'
+            c.textBaseline = 'middle'
+            c.fillText('FINISH', 0, 0)
+          })
         }
 
-        // Paddestoelen tekenen
-        for (const paddestoel of paddestoelen) {
-          paddestoel.draw(ctx)
+        for (const p of paddestoelen) {
+          tekenSprite(ctx, canvas, speler, p.x, p.y, (c) => p.draw(c))
         }
 
-        // Finish tekenen
-        const finish = huidigLevel.finish
-        ctx.fillStyle = '#ffdd00'
-        ctx.beginPath()
-        ctx.arc(finish.x, finish.y, 20, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = '#ffaa00'
-        ctx.lineWidth = 2
-        ctx.stroke()
-
-        ctx.fillStyle = 'white'
-        ctx.font = 'bold 12px monospace'
-        ctx.textAlign = 'center'
-        ctx.fillText('FINISH', finish.x, finish.y - 28)
-        ctx.textAlign = 'left'
-
-        speler.draw(ctx)
+        tekenSpeler(ctx, canvas, (c) => speler.draw(c))
 
         ctx.fillStyle = 'white'
         ctx.font = 'bold 20px monospace'
-        ctx.fillText(huidigLevel.naam, 30, 50)
+        ctx.textAlign = 'left'
+        ctx.shadowColor = 'black'
+        ctx.shadowBlur = 4
+        ctx.fillText(levels[levelNummer].naam, 20, 30)
+        ctx.shadowBlur = 0
       }
 
       if (scherm === 'gameover') {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
         ctx.fillRect(0, 0, canvas.width, canvas.height)
-
+        ctx.textAlign = 'center'
         ctx.fillStyle = '#ff4444'
         ctx.font = 'bold 48px monospace'
-        ctx.textAlign = 'center'
         ctx.fillText('GAME OVER!', canvas.width / 2, canvas.height / 2 - 20)
-
         ctx.fillStyle = 'white'
         ctx.font = '20px monospace'
         ctx.fillText('Paddestoel geraakt!', canvas.width / 2, canvas.height / 2 + 20)
@@ -185,4 +198,17 @@ export function createGame() {
       }
     },
   }
+}
+
+function tekenTitel(ctx, canvas, titel, subtitel) {
+  ctx.shadowColor = 'black'
+  ctx.shadowBlur = 4
+  ctx.fillStyle = 'white'
+  ctx.font = 'bold 28px monospace'
+  ctx.textAlign = 'center'
+  ctx.fillText(titel, canvas.width / 2, 40)
+  ctx.font = '14px monospace'
+  ctx.fillText(subtitel, canvas.width / 2, 65)
+  ctx.textAlign = 'left'
+  ctx.shadowBlur = 0
 }
