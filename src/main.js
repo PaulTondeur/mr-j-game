@@ -76,6 +76,11 @@ resize()
 window.addEventListener('resize', resize)
 if (window.visualViewport) window.visualViewport.addEventListener('resize', resize)
 
+// Pauzeer als window focus verliest
+let windowFocus = true
+window.addEventListener('blur', () => { windowFocus = false })
+window.addEventListener('focus', () => { windowFocus = true; vorigeTijd = performance.now() / 1000 })
+
 // === LICHT ===
 scene.add(new THREE.AmbientLight(0xffffff, 0.6))
 const zon = new THREE.DirectionalLight(0xffffff, 1.0)
@@ -1903,7 +1908,8 @@ function loop() {
   }
 
   // Menu open → pauzeer
-  if (menuPauze) {
+  // Menu open of window geen focus → pauzeer
+  if (menuPauze || !windowFocus) {
     renderer.render(scene, camera)
     requestAnimationFrame(loop)
     return
