@@ -7,7 +7,8 @@
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { overflow: hidden; width: 100dvw; height: 100dvh; background: #000; position: fixed; top: 0; left: 0; }
-    canvas { position: fixed !important; top: 0 !important; left: 0 !important; width: 100dvw !important; height: 100dvh !important; display: block; }
+    canvas.game-canvas { position: fixed !important; top: 0 !important; left: 0 !important; width: 100dvw !important; height: 100dvh !important; display: block; z-index: 1; }
+    #preview-3d { position: static !important; width: 60px !important; height: 80px !important; }
     #hud {
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
@@ -40,6 +41,26 @@
       text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
     }
     .hp-blok { width: 18px; height: 18px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.3); transition: background 0.2s; }
+    #shop-knop {
+      color: #ffd700; font-size: 14px; cursor: pointer; pointer-events: auto;
+      background: rgba(255,215,0,0.15); border: 1px solid #ffd700; border-radius: 6px;
+      padding: 4px 10px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    }
+    #shop-knop:hover { background: rgba(255,215,0,0.3); }
+    #shop-scherm {
+      display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.85); z-index: 100;
+      flex-direction: column; align-items: center; justify-content: center;
+      color: white; font-family: monospace;
+    }
+    .shop-item {
+      background: rgba(255,255,255,0.1); border: 1px solid #555; border-radius: 10px;
+      padding: 15px 25px; margin: 8px; cursor: pointer; pointer-events: auto;
+      text-align: center; min-width: 220px; transition: background 0.2s;
+    }
+    .shop-item:hover { background: rgba(255,215,0,0.2); border-color: #ffd700; }
+    .shop-item.gekocht { border-color: #44dd44; background: rgba(68,221,68,0.1); }
+    .shop-prijs { color: #ffd700; font-size: 18px; font-weight: bold; }
     #bericht {
       position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -50%);
@@ -55,10 +76,80 @@
     <div id="hud-balk">
       <div id="level-naam"></div>
       <div id="score"></div>
+      <div id="pauze-hint" style="color:rgba(255,255,255,0.5); font-size:12px;">P = Pauze</div>
+      <div id="shop-knop" onclick="document.getElementById('shop-scherm').style.display='flex'">🛒 Shop</div>
+      <div id="karakter-knop" onclick="document.getElementById('karakter-scherm').style.display='flex'" style="color:#ff88ff;font-size:14px;cursor:pointer;pointer-events:auto;background:rgba(255,136,255,0.15);border:1px solid #ff88ff;border-radius:6px;padding:4px 10px;text-shadow:1px 1px 2px rgba(0,0,0,0.8)">🧑 Karakter</div>
+      <div id="opslag-knop" onclick="window.openOpslag()" style="color:#44ddff;font-size:14px;cursor:pointer;pointer-events:auto;background:rgba(68,221,255,0.15);border:1px solid #44ddff;border-radius:6px;padding:4px 10px;text-shadow:1px 1px 2px rgba(0,0,0,0.8)">🎒 Opslag</div>
       <div id="gezondheid"></div>
       <div id="levens"></div>
     </div>
     <div id="bericht"></div>
+  </div>
+  <div id="webcam-scherm" style="display:none;position:fixed;bottom:15px;right:15px;z-index:200;flex-direction:column;align-items:center;color:white;font-family:monospace;background:rgba(0,0,0,0.85);border-radius:12px;padding:10px;border:1px solid rgba(255,255,255,0.2);pointer-events:auto">
+    <div style="font-size:12px;margin-bottom:6px">📸 Gezicht in het rondje</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div style="position:relative;width:80px;height:80px;flex-shrink:0">
+        <video id="webcam-video" autoplay playsinline style="width:80px;height:80px;object-fit:cover;border-radius:50%;transform:scaleX(-1)"></video>
+        <div style="position:absolute;top:0;left:0;width:80px;height:80px;border:2px solid #ffd700;border-radius:50%;pointer-events:none"></div>
+      </div>
+      <div style="font-size:14px">→</div>
+      <canvas id="preview-3d" width="60" height="80" style="border-radius:6px;flex-shrink:0"></canvas>
+    </div>
+    <canvas id="webcam-canvas" width="128" height="128" style="display:none"></canvas>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <div onclick="window.neemEnBevestigFoto()" style="cursor:pointer;background:#44dd44;color:#000;padding:4px 10px;border-radius:6px;font-weight:bold;font-size:11px">✅ Gebruiken</div>
+      <div onclick="window.opnieuwFoto()" style="cursor:pointer;background:#ff8844;color:#000;padding:4px 10px;border-radius:6px;font-size:11px">🔄 Opnieuw</div>
+      <div onclick="window.sluitWebcam()" style="cursor:pointer;background:#555;color:white;padding:4px 10px;border-radius:6px;font-size:11px">✕</div>
+    </div>
+  </div>
+  <div id="karakter-scherm" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);z-index:100;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:monospace">
+    <div style="font-size:36px;margin-bottom:20px">🧑 KIES JE KARAKTER</div>
+    <div style="display:flex;gap:15px;flex-wrap:wrap;justify-content:center;margin-bottom:20px">
+      <div class="shop-item" onclick="window.kiesKarakter('mario')" id="kar-mario" style="pointer-events:auto;cursor:pointer">
+        <div style="font-size:32px">🔴</div>
+        <div>Mario</div>
+        <div style="font-size:11px;color:#aaa">Rood poppetje</div>
+      </div>
+      <div class="shop-item" onclick="window.kiesKarakter('luigi')" id="kar-luigi" style="pointer-events:auto;cursor:pointer">
+        <div style="font-size:32px">🟢</div>
+        <div>Luigi</div>
+        <div style="font-size:11px;color:#aaa">Groen poppetje</div>
+      </div>
+      <div class="shop-item" onclick="window.openWebcam()" id="kar-foto" style="pointer-events:auto;cursor:pointer">
+        <div style="font-size:32px">📸</div>
+        <div>Eigen Foto</div>
+        <div style="font-size:11px;color:#aaa">Jouw gezicht op Mario!</div>
+      </div>
+    </div>
+    <div id="karakter-status" style="font-size:14px;color:#44dd44;margin-bottom:15px"></div>
+    <div style="cursor:pointer;pointer-events:auto;color:#aaa;font-size:16px" onclick="document.getElementById('karakter-scherm').style.display='none'">✕ Sluiten</div>
+  </div>
+  <div id="opslag-scherm" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);z-index:100;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:monospace">
+    <div style="font-size:36px;margin-bottom:20px">🎒 OPSLAG</div>
+    <div id="opslag-items" style="display:flex;flex-direction:column;align-items:center;gap:10px"></div>
+    <div id="opslag-leeg" style="color:#aaa;font-size:16px;margin:20px">Je opslag is leeg</div>
+    <div style="margin-top:20px;cursor:pointer;pointer-events:auto;color:#aaa;font-size:16px" onclick="document.getElementById('opslag-scherm').style.display='none'">✕ Sluiten</div>
+  </div>
+  <div id="shop-scherm" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);z-index:100;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:monospace">
+    <div style="font-size:36px;margin-bottom:20px">🛒 SHOP</div>
+    <div id="shop-score" style="color:#ffd700;font-size:20px;margin-bottom:20px"></div>
+    <div class="shop-item" id="shop-1level" onclick="window.koopSchoenen('1level')">
+      <div>👟 Snelle Schoenen</div>
+      <div style="font-size:12px;color:#aaa;margin:5px 0">1 level lang sneller lopen</div>
+      <div class="shop-prijs">150 punten</div>
+    </div>
+    <div class="shop-item" id="shop-altijd" onclick="window.koopSchoenen('altijd')">
+      <div>👟✨ Snelle Schoenen FOREVER</div>
+      <div style="font-size:12px;color:#aaa;margin:5px 0">Voor altijd sneller lopen</div>
+      <div class="shop-prijs">1000 punten</div>
+    </div>
+    <div id="shop-status" style="margin-top:15px;font-size:14px;color:#aaa"></div>
+    <div style="margin-top:20px;cursor:pointer;pointer-events:auto;color:#aaa;font-size:16px" onclick="document.getElementById('shop-scherm').style.display='none'">✕ Sluiten</div>
+  </div>
+  <div id="pauze-scherm" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.75);z-index:100;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:monospace">
+    <div style="font-size:64px">⏸</div>
+    <div style="font-size:42px;margin:20px 0;font-weight:bold">PAUZE</div>
+    <div style="font-size:18px;color:#aaa">Druk P om verder te gaan</div>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>

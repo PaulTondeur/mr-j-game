@@ -20,10 +20,35 @@ function laadModel(naam) {
 
 const TEGEL = 2
 
+// Geluiden
+const boerAudio = new Audio('/src/geluid/boer.m4a')
+const bahSanderAudio = new Audio('/src/geluid/bah-sander.m4a')
+// Versterkt via Web Audio
+let bahGain = null
+try {
+  const bahCtx = new (window.AudioContext || window.webkitAudioContext)()
+  const bahBron = bahCtx.createMediaElementSource(bahSanderAudio)
+  bahGain = bahCtx.createGain()
+  bahGain.gain.value = 8.0
+  bahBron.connect(bahGain)
+  bahGain.connect(bahCtx.destination)
+} catch (e) { bahSanderAudio.volume = 1.0 }
+function speelBoer() {
+  try {
+    boerAudio.currentTime = 0
+    boerAudio.play()
+    setTimeout(() => {
+      bahSanderAudio.currentTime = 0
+      bahSanderAudio.play()
+    }, 100)
+  } catch (e) {}
+}
+
 // === RENDERER ===
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.shadowMap.enabled = true
 renderer.toneMapping = THREE.ACESFilmicToneMapping
+renderer.domElement.classList.add('game-canvas')
 document.body.prepend(renderer.domElement)
 
 const scene = new THREE.Scene()
@@ -93,7 +118,7 @@ let paddestoelenData = []
 let finishPos = null
 let portalenData = []
 let levens = 3
-let score = 0
+let score = parseInt(localStorage.getItem('mrj-score') || '0')
 let finishFase = null // null, 'spring', 'glijden', 'lopen', 'huisje'
 let finishTimer = 0
 let finishHuis = null
@@ -101,6 +126,8 @@ let finishPaal = null
 let sandersData = []
 let shawarmaData = []
 let gezondheid = 3 // 3 hits per leven
+let snelleSchoenen = false // tijdelijk (1 level)
+let snelleSchoenenAltijd = JSON.parse(localStorage.getItem('mrj-snelle-schoenen') || 'false')
 let onkwetsbaarTot = 0 // tijdstip tot wanneer je onkwetsbaar bent
 let ontgrendeld = [true, false, false, false, false, false, false, false, false, false]
 
@@ -246,27 +273,90 @@ function bouwKaart(kaart) {
 }
 
 // === MARIO (gedetailleerd, Nintendo-stijl) ===
-async function maakMario() {
-  const model = await laadModel('character-oopi')
-  if (model) {
-    model.scale.set(1.2, 1.2, 1.2)
-    model.position.y = 0.2
-    model.traverse((c) => { if (c.isMesh) { c.castShadow = true } })
-    scene.add(model)
-    return model
-  }
-  // Fallback: simpel blokje als model niet laadt
+function maakMario() {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.2, 0.25, 0.8, 10),
-    new THREE.MeshStandardMaterial({ color: 0xe52521 })
-  )
-  body.position.y = 0.6; body.castShadow = true; g.add(body)
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.25, 12, 10),
-    new THREE.MeshStandardMaterial({ color: 0xfec29a })
-  )
-  head.position.y = 1.2; head.castShadow = true; g.add(head)
+
+  // Kleuren per karakter
+  const isMario = gekozenKarakter === 'mario' || gekozenKarakter === 'foto'
+  const petKleur = isMario ? 0xe52521 : 0x1ea52a
+  const shirtKleur = isMario ? 0xe52521 : 0x1ea52a
+  const overallKleur = 0x2b3caa
+
+  const petMat = new THREE.MeshStandardMaterial({ color: petKleur, roughness: 0.5 })
+  const shirtMat = new THREE.MeshStandardMaterial({ color: shirtKleur, roughness: 0.5 })
+  const blauw = new THREE.MeshStandardMaterial({ color: overallKleur, roughness: 0.5 })
+  const huid = new THREE.MeshStandardMaterial({ color: 0xfec29a, roughness: 0.7 })
+  const heeftSchoenen = schoenenAan && (snelleSchoenen || snelleSchoenenAltijd)
+  const schoenMat = new THREE.MeshStandardMaterial({ color: heeftSchoenen ? 0xffffff : 0x7a3f10, roughness: heeftSchoenen ? 0.3 : 0.7 })
+  const wit = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 })
+
+  // Hoofd
+  if (gekozenKarakter === 'foto' && fotoTexture) {
+    // Foto op de voorkant van het hoofd (bol-texture)
+    const hoofd = new THREE.Mesh(new THREE.SphereGeometry(0.25, 20, 16), huid)
+    hoofd.position.y = 1.2; hoofd.castShadow = true; g.add(hoofd)
+    const gezichtGeo = new THREE.SphereGeometry(0.251, 20, 16, Math.PI * 1.25, Math.PI * 0.5, Math.PI * 0.2, Math.PI * 0.6)
+    const fotoMat = new THREE.MeshBasicMaterial({ map: fotoTexture })
+    const gezicht = new THREE.Mesh(gezichtGeo, fotoMat)
+    gezicht.position.y = 1.2
+    g.add(gezicht)
+  } else {
+    // Normaal hoofd met ogen/neus/snor
+    const hoofd = new THREE.Mesh(new THREE.SphereGeometry(0.25, 14, 12), huid)
+    hoofd.position.y = 1.2; hoofd.castShadow = true; g.add(hoofd)
+
+    const oogMat = new THREE.MeshStandardMaterial({ color: 0x111111 })
+    for (const s of [-0.08, 0.08]) {
+      const oogW = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), wit)
+      oogW.position.set(s, 1.24, -0.2); g.add(oogW)
+      const oog = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), oogMat)
+      oog.position.set(s, 1.24, -0.25); g.add(oog)
+    }
+    const neus = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), huid)
+    neus.position.set(0, 1.14, -0.26); g.add(neus)
+    const snorMat = new THREE.MeshStandardMaterial({ color: 0x1a0800 })
+    for (const s of [-1, 1]) {
+      const snor = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), snorMat)
+      snor.position.set(s * 0.1, 1.06, -0.22); snor.scale.set(1.2, 0.5, 0.7); g.add(snor)
+    }
+  }
+
+  // Pet
+  const pet = new THREE.Mesh(new THREE.SphereGeometry(0.27, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), petMat)
+  pet.position.y = 1.35; g.add(pet)
+  const klep = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.03, 0.18), petMat)
+  klep.position.set(0, 1.33, -0.22); g.add(klep)
+
+  // Lichaam
+  const shirt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.35, 12), shirtMat)
+  shirt.position.y = 0.75; shirt.castShadow = true; g.add(shirt)
+  const overall = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.25, 0.35, 12), blauw)
+  overall.position.y = 0.42; overall.castShadow = true; g.add(overall)
+
+  // Gele knopen
+  const geelMat = new THREE.MeshStandardMaterial({ color: 0xf5d623, metalness: 0.5 })
+  for (const s of [-0.14, 0.14]) {
+    const knoop = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), geelMat)
+    knoop.position.set(s, 0.6, -0.2); g.add(knoop)
+  }
+
+  // Armen + handschoenen
+  for (const s of [-1, 1]) {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.2, 8), shirtMat)
+    arm.position.set(s * 0.28, 0.72, 0); arm.rotation.z = s * 0.25; g.add(arm)
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), wit)
+    hand.position.set(s * 0.33, 0.55, 0); hand.name = s < 0 ? 'linkerHand' : 'rechterHand'; g.add(hand)
+  }
+
+  // Benen + schoenen
+  for (const s of [-0.1, 0.1]) {
+    const been = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.2, 8), blauw)
+    been.position.set(s, 0.14, 0); been.name = s < 0 ? 'linkerBeen' : 'rechterBeen'; g.add(been)
+    const schoen = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), schoenMat)
+    schoen.scale.set(0.7, 0.4, 1.2); schoen.position.set(s, 0.02, -0.04)
+    schoen.name = s < 0 ? 'linkerSchoen' : 'rechterSchoen'; g.add(schoen)
+  }
+
   g.position.y = 0.2
   scene.add(g)
   return g
@@ -448,23 +538,28 @@ function maakVliegendeShawarma() {
 }
 
 // === FINISH (vlagpaal + huisje) ===
-async function maakFinishPaal(fx, fy) {
+function maakFinishPaal(fx, fy) {
   const g = new THREE.Group()
 
-  // Probeer Kenney flag model
-  const flagModel = await laadModel('flag')
-  if (flagModel) {
-    flagModel.scale.set(1.5, 1.5, 1.5)
-    flagModel.traverse((c) => { if (c.isMesh) c.castShadow = true })
-    flagModel.name = 'vlag'
-    g.add(flagModel)
-  } else {
-    // Fallback
-    const paal = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 4, 8), new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.5 }))
-    paal.position.y = 2.2; paal.castShadow = true; g.add(paal)
-    const vlag = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.5), new THREE.MeshStandardMaterial({ color: 0x44bb44, side: THREE.DoubleSide }))
-    vlag.position.set(0.4, 3.8, 0); vlag.name = 'vlag'; g.add(vlag)
-  }
+  // Fallback paal + vlag
+  // Mast (3 meter)
+  const paal = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3, 12), new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6, roughness: 0.3 }))
+  paal.position.y = 1.7; paal.castShadow = true; g.add(paal)
+
+  // Gouden bol bovenop
+  const bol = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 12), new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.2 }))
+  bol.position.y = 3.3; g.add(bol)
+
+  // Vlag
+  const vlag = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.5), new THREE.MeshStandardMaterial({ color: 0x44bb44, side: THREE.DoubleSide }))
+  vlag.position.set(0.4, 2.8, 0)
+  vlag.name = 'vlag'
+  g.add(vlag)
+
+  // Licht
+  const licht = new THREE.PointLight(0xffd700, 1, 5)
+  licht.position.y = 3.3; g.add(licht)
+
 
   const paalLicht = new THREE.PointLight(0xffd700, 1, 5)
   paalLicht.position.set(0, 2, 0); g.add(paalLicht)
@@ -501,7 +596,7 @@ async function maakFinishPaal(fx, fy) {
 }
 
 // === PORTAAL ===
-async function maakPortaal(px, py, label, isOpen, levelIdx) {
+function maakPortaal(px, py, label, isOpen, levelIdx) {
   const g = new THREE.Group()
   const goud = new THREE.MeshStandardMaterial({ color: isOpen ? 0xffd700 : 0x666666, metalness: 0.6 })
 
@@ -561,19 +656,24 @@ async function maakPortaal(px, py, label, isOpen, levelIdx) {
   g.add(bordGroep)
 
   if (!isOpen) {
-    // Kenney lock model
-    const lockModel = await laadModel('lock')
-    if (lockModel) {
-      lockModel.scale.set(1.5, 1.5, 1.5)
-      lockModel.position.y = 1.4
-      g.add(lockModel)
-    } else {
-      const slotGroep = new THREE.Group()
-      const slotBody = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.2, 0.12), new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5 }))
-      slotGroep.add(slotBody)
-      slotGroep.position.y = 1.4
-      g.add(slotGroep)
-    }
+    // Fallback slot
+    const slotGroep = new THREE.Group()
+    slotGroep.name = 'slotFallback'
+    const slotBody = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.2, 0.12), new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5 }))
+    slotGroep.add(slotBody)
+    slotGroep.position.y = 1.4
+    g.add(slotGroep)
+
+    // Laad Kenney lock op achtergrond
+    laadModel('lock').then((lockModel) => {
+      if (lockModel && g.parent) {
+        const fb = g.getObjectByName('slotFallback')
+        if (fb) g.remove(fb)
+        lockModel.scale.set(1.5, 1.5, 1.5)
+        lockModel.position.y = 1.4
+        g.add(lockModel)
+      }
+    })
   }
 
   g.position.set(px * TEGEL, 0.2, py * TEGEL)
@@ -618,14 +718,14 @@ const startKaart = [
   '##########################',
 ]
 
-async function laadStart() {
+function laadStart() {
   clearWereld()
   scherm = 'start'
   inputUit = false
   actieveKaart = startKaart
 
   bouwKaart(startKaart)
-  mario = await maakMario()
+  mario = maakMario()
 
   const parsed = parseKaart(startKaart)
   spelerX = parsed.start.x
@@ -635,7 +735,7 @@ async function laadStart() {
   portalenData = []
   for (const p of parsed.portalen) {
     const isOpen = ontgrendeld[p.level]
-    const mesh = await maakPortaal(p.x, p.y, p.label, isOpen, p.level)
+    const mesh = maakPortaal(p.x, p.y, p.label, isOpen, p.level)
     portalenData.push({ mesh, ...p, open: isOpen })
   }
 
@@ -646,7 +746,7 @@ async function laadStart() {
   updateHUD()
 }
 
-async function laadLevel(nummer) {
+function laadLevel(nummer) {
   clearWereld()
   scherm = 'level'
   levelNummer = nummer
@@ -678,17 +778,17 @@ async function laadLevel(nummer) {
   }
 
   bouwKaart(level.kaart)
-  mario = await maakMario()
+  mario = maakMario()
 
   const parsed = parseKaart(level.kaart)
   spelerX = parsed.start.x
   spelerY = parsed.start.y
   spelerHoogte = 0; spelerVY = 0; opGrond = true
-  gezondheid = 3; onkwetsbaarTot = 0
+  gezondheid = 3; onkwetsbaarTot = 0; snelleSchoenen = false
   finishPos = parsed.finish
 
   // Finish
-  if (finishPos) await maakFinishPaal(finishPos.x, finishPos.y)
+  if (finishPos) maakFinishPaal(finishPos.x, finishPos.y)
 
   // Meester Sanders
   sandersData = parsed.sanders.map(s => ({
@@ -698,8 +798,33 @@ async function laadLevel(nummer) {
 
   zetCamera()
   hudNaam.textContent = level.naam
-  hudBericht.style.display = 'none'
   updateHUD()
+
+  // Uitleg tonen als je dit level nog niet hebt gehaald
+  const gehaald = ontgrendeld[nummer + 1] || false
+  if (!gehaald) {
+    inputUit = true
+    hudBericht.style.display = 'block'
+    hudBericht.innerHTML = '<div style="background:rgba(0,0,0,0.7);padding:20px;border-radius:12px;font-size:18px">' +
+      '<span style="font-size:24px;color:#ffd700">' + level.naam + '</span><br><br>' +
+      '⬆️⬇️⬅️➡️ Lopen<br>' +
+      '⎵ Spatie = Springen<br>' +
+      'P = Pauze<br><br>' +
+      '🥙 Ontwijkt de shawarma\'s van Sander!<br>' +
+      '🚩 Loop naar de vlag!<br><br>' +
+      '<span style="font-size:14px;color:#aaa">Druk op SPATIE om te starten</span>' +
+      '</div>'
+    const wachtOpStart = setInterval(() => {
+      if (keys[' ']) {
+        clearInterval(wachtOpStart)
+        hudBericht.style.display = 'none'
+        inputUit = false
+        keys[' '] = false
+      }
+    }, 100)
+  } else {
+    hudBericht.style.display = 'none'
+  }
 }
 
 function zetCamera() {
@@ -710,6 +835,7 @@ function zetCamera() {
 function updateHUD() {
   hudLevens.textContent = '❤️'.repeat(levens)
   hudScore.textContent = 'Score: ' + score
+  localStorage.setItem('mrj-score', score)
   const hpEl = document.getElementById('gezondheid')
   if (hpEl) {
     let html = 'HP '
@@ -717,9 +843,272 @@ function updateHUD() {
       const kleur = i < gezondheid ? '#44dd44' : '#442222'
       html += `<div class="hp-blok" style="background:${kleur}"></div>`
     }
+    if (snelleSchoenen || snelleSchoenenAltijd) html += ' 👟'
     hpEl.innerHTML = html
   }
+  // Shop score updaten
+  const shopScore = document.getElementById('shop-score')
+  if (shopScore) shopScore.textContent = 'Je hebt ' + score + ' punten'
+  // Shop items updaten
+  const shop1 = document.getElementById('shop-1level')
+  const shopA = document.getElementById('shop-altijd')
+  if (shop1) shop1.className = snelleSchoenen ? 'shop-item gekocht' : 'shop-item'
+  if (shopA) shopA.className = snelleSchoenenAltijd ? 'shop-item gekocht' : 'shop-item'
 }
+
+// Shop koop functies (global zodat HTML onclick werkt)
+window.koopSchoenen = function(type) {
+  const status = document.getElementById('shop-status')
+  if (type === '1level') {
+    if (snelleSchoenen) { status.textContent = 'Je hebt al snelle schoenen voor dit level!'; return }
+    if (score < 150) { status.textContent = 'Niet genoeg punten! Je hebt ' + score + ', je hebt 150 nodig.'; return }
+    score -= 150
+    snelleSchoenen = true
+    status.textContent = '👟 Snelle schoenen gekocht! Geldig voor 1 level.'
+    status.style.color = '#44dd44'
+  } else {
+    if (snelleSchoenenAltijd) { status.textContent = 'Je hebt al forever schoenen!'; return }
+    if (score < 1000) { status.textContent = 'Niet genoeg punten! Je hebt ' + score + ', je hebt 1000 nodig.'; return }
+    score -= 1000
+    snelleSchoenenAltijd = true
+    localStorage.setItem('mrj-snelle-schoenen', 'true')
+    status.textContent = '👟✨ Forever schoenen gekocht! Je bent nu altijd snel!'
+    status.style.color = '#ffd700'
+  }
+  updateHUD()
+}
+
+let schoenenAan = true // of de schoenen aangetrokken zijn
+let gekozenKarakter = localStorage.getItem('mrj-karakter') || 'mario' // mario, luigi, foto
+let fotoTexture = null // voor eigen foto gezicht
+
+window.openOpslag = function() {
+  const items = document.getElementById('opslag-items')
+  const leeg = document.getElementById('opslag-leeg')
+  const heeftIets = snelleSchoenen || snelleSchoenenAltijd
+
+  if (!heeftIets) {
+    items.innerHTML = ''
+    leeg.style.display = 'block'
+  } else {
+    leeg.style.display = 'none'
+    const type = snelleSchoenenAltijd ? 'Forever Schoenen' : 'Snelle Schoenen (1 level)'
+    items.innerHTML = '<div class="shop-item" onclick="window.toggleSchoenen()" style="pointer-events:auto;cursor:pointer">' +
+      '<div>👟 ' + type + '</div>' +
+      '<div style="font-size:14px;margin-top:8px;color:' + (schoenenAan ? '#44dd44' : '#ff6644') + '">' +
+      (schoenenAan ? '✅ Aangetrokken — klik om uit te trekken' : '❌ Uitgetrokken — klik om aan te trekken') +
+      '</div></div>'
+  }
+  document.getElementById('opslag-scherm').style.display = 'flex'
+}
+
+window.toggleSchoenen = function() {
+  schoenenAan = !schoenenAan
+  window.openOpslag() // Herlaad opslag scherm
+  updateHUD()
+}
+
+// Karakter kiezen
+window.kiesKarakter = function(type) {
+  gekozenKarakter = type
+  localStorage.setItem('mrj-karakter', type)
+  document.getElementById('karakter-status').textContent =
+    type === 'mario' ? '✅ Mario gekozen!' : type === 'luigi' ? '✅ Luigi gekozen!' : '✅ Eigen foto gekozen! Open 📸 om een foto te nemen.'
+  // Herbouw Mario met nieuwe kleuren
+  if (mario) { scene.remove(mario) }
+  mario = maakMario()
+  mario.position.set(spelerX * TEGEL, 0.2, spelerY * TEGEL)
+}
+
+let webcamStream = null
+let previewRenderer = null
+let previewScene = null
+let previewCamera = null
+let previewMario = null
+let previewAnimId = null
+let previewFotoCanvas = null
+
+window.openWebcam = function() {
+  document.getElementById('webcam-scherm').style.display = 'flex'
+  const video = document.getElementById('webcam-video')
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 240, height: 240 } })
+    .then(stream => {
+      webcamStream = stream
+      video.srcObject = stream
+      startPreview3D()
+    })
+    .catch(() => { document.getElementById('karakter-status').textContent = '❌ Geen webcam gevonden!' })
+}
+
+function startPreview3D() {
+  const canvas3d = document.getElementById('preview-3d')
+  // Eigen losse Three.js renderer, volledig apart van de game
+  previewRenderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true, alpha: true })
+  previewRenderer.setSize(canvas3d.width, canvas3d.height, false)
+  previewRenderer.setPixelRatio(window.devicePixelRatio)
+  previewScene = new THREE.Scene()
+  previewScene.background = null // Transparant
+  previewScene.add(new THREE.AmbientLight(0xffffff, 0.8))
+  const licht = new THREE.DirectionalLight(0xffffff, 1.2)
+  licht.position.set(1, 3, 4)
+  previewScene.add(licht)
+  previewCamera = new THREE.PerspectiveCamera(30, 60 / 80, 0.1, 50)
+  previewCamera.position.set(0, 1.1, 2.0) // Recht van voren
+  previewCamera.lookAt(0, 0.85, 0)
+
+  // Maak een foto-canvas voor de live texture
+  previewFotoCanvas = document.createElement('canvas')
+  previewFotoCanvas.width = 128
+  previewFotoCanvas.height = 128
+
+  // Bouw preview Mario met foto-texture
+  bouwPreviewMario()
+
+  // Live update loop
+  function previewLoop() {
+    previewAnimId = requestAnimationFrame(previewLoop)
+    // Update foto texture van webcam
+    const video = document.getElementById('webcam-video')
+    if (video.readyState >= 2) {
+      const ctx = previewFotoCanvas.getContext('2d')
+      ctx.save()
+      ctx.translate(128, 0)
+      ctx.scale(-1, 1)
+      ctx.drawImage(video, 0, 0, 128, 128)
+      ctx.restore()
+      // Circulair maken
+      ctx.globalCompositeOperation = 'destination-in'
+      ctx.beginPath()
+      ctx.arc(64, 64, 64, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalCompositeOperation = 'source-over'
+      // Update texture
+      if (previewMario && previewMario.userData.fotoTex) {
+        previewMario.userData.fotoTex.needsUpdate = true
+      }
+    }
+    // Poppetje staat stil, recht naar camera
+    if (previewMario) previewMario.rotation.y = 0
+    previewRenderer.render(previewScene, previewCamera)
+  }
+  previewLoop()
+}
+
+function bouwPreviewMario() {
+  if (previewMario) previewScene.remove(previewMario)
+  const g = new THREE.Group()
+  const rood = new THREE.MeshStandardMaterial({ color: 0xe52521, roughness: 0.5 })
+  const blauw = new THREE.MeshStandardMaterial({ color: 0x2b3caa, roughness: 0.5 })
+  const huid = new THREE.MeshStandardMaterial({ color: 0xfec29a, roughness: 0.7 })
+  const wit = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 })
+  const bruin = new THREE.MeshStandardMaterial({ color: 0x7a3f10, roughness: 0.7 })
+
+  // Hoofd met foto op de voorkant van de bol
+  const fotoTex = new THREE.CanvasTexture(previewFotoCanvas)
+  const hoofdMat = [
+    huid, huid, huid, huid,
+    new THREE.MeshBasicMaterial({ map: fotoTex }), // voorkant
+    huid, // achterkant
+  ]
+  // Gebruik een bol met de foto als texture op de voorkant
+  const hoofd = new THREE.Mesh(new THREE.SphereGeometry(0.25, 20, 16), huid)
+  hoofd.position.y = 1.2; g.add(hoofd)
+  // Foto als halve bol op de voorkant geplakt
+  const gezichtGeo = new THREE.SphereGeometry(0.251, 20, 16, Math.PI * 1.25, Math.PI * 0.5, Math.PI * 0.2, Math.PI * 0.6)
+  const fotoMat = new THREE.MeshBasicMaterial({ map: fotoTex, transparent: false })
+  const gezicht = new THREE.Mesh(gezichtGeo, fotoMat)
+  gezicht.position.y = 1.2
+  g.add(gezicht)
+  g.userData.fotoTex = fotoTex
+
+  // Pet
+  const pet = new THREE.Mesh(new THREE.SphereGeometry(0.27, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), rood)
+  pet.position.y = 1.35; g.add(pet)
+  const klep = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.03, 0.18), rood)
+  klep.position.set(0, 1.33, -0.22); g.add(klep)
+
+  // Lichaam
+  const shirt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.35, 12), rood)
+  shirt.position.y = 0.75; g.add(shirt)
+  const overall = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.25, 0.35, 12), blauw)
+  overall.position.y = 0.42; g.add(overall)
+
+  // Armen
+  for (const s of [-1, 1]) {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.2, 8), rood)
+    arm.position.set(s * 0.28, 0.72, 0); arm.rotation.z = s * 0.25; g.add(arm)
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), wit)
+    hand.position.set(s * 0.33, 0.55, 0); g.add(hand)
+  }
+
+  // Benen
+  for (const s of [-0.1, 0.1]) {
+    const been = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.2, 8), blauw)
+    been.position.set(s, 0.14, 0); g.add(been)
+    const schoen = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), bruin)
+    schoen.scale.set(0.7, 0.4, 1.2); schoen.position.set(s, 0.02, -0.04); g.add(schoen)
+  }
+
+  previewScene.add(g)
+  previewMario = g
+}
+
+window.sluitWebcam = function() {
+  if (webcamStream) { webcamStream.getTracks().forEach(t => t.stop()); webcamStream = null }
+  if (previewAnimId) { cancelAnimationFrame(previewAnimId); previewAnimId = null }
+  if (previewRenderer) { previewRenderer.dispose(); previewRenderer = null }
+  previewScene = null; previewMario = null
+  document.getElementById('webcam-scherm').style.display = 'none'
+}
+
+window.neemEnBevestigFoto = function() {
+  const video = document.getElementById('webcam-video')
+  const canvas = document.getElementById('webcam-canvas')
+  const ctx = canvas.getContext('2d')
+
+  ctx.save()
+  ctx.translate(128, 0)
+  ctx.scale(-1, 1)
+  ctx.drawImage(video, 0, 0, 128, 128)
+  ctx.restore()
+  ctx.globalCompositeOperation = 'destination-in'
+  ctx.beginPath()
+  ctx.arc(64, 64, 64, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.globalCompositeOperation = 'source-over'
+
+  fotoTexture = new THREE.CanvasTexture(canvas)
+  localStorage.setItem('mrj-foto', canvas.toDataURL())
+  gekozenKarakter = 'foto'
+  localStorage.setItem('mrj-karakter', 'foto')
+
+  window.sluitWebcam()
+  document.getElementById('karakter-status').textContent = '✅ Foto genomen! Jouw gezicht zit nu op Mario!'
+
+  if (mario) { scene.remove(mario) }
+  mario = maakMario()
+  mario.position.set(spelerX * TEGEL, 0.2, spelerY * TEGEL)
+}
+
+window.opnieuwFoto = function() {
+  // Webcam draait al, preview update zichzelf live — niks te doen
+  // Gebruiker kan opnieuw positioneren en dan op OK klikken
+}
+
+// Laad opgeslagen foto bij opstarten
+try {
+  const savedFoto = localStorage.getItem('mrj-foto')
+  if (savedFoto && gekozenKarakter === 'foto') {
+    const img = new Image()
+    img.onload = function() {
+      const canvas = document.createElement('canvas')
+      canvas.width = 128; canvas.height = 128
+      canvas.getContext('2d').drawImage(img, 0, 0, 128, 128)
+      fotoTexture = new THREE.CanvasTexture(canvas)
+    }
+    img.src = savedFoto
+  }
+} catch (e) {}
 
 function raakSchade() {
   // Onkwetsbaar na een hit
@@ -874,6 +1263,21 @@ laadStart()
 function loop() {
   tijd += 1 / 60
 
+  // Pauze met P toets
+  if (scherm === 'level' && keys['p'] && !inputUit) {
+    scherm = 'pauze'
+    keys['p'] = false
+    document.getElementById('pauze-scherm').style.display = 'flex'
+  }
+  if (scherm === 'pauze') {
+    if (keys['p']) {
+      scherm = 'level'; keys['p'] = false
+      document.getElementById('pauze-scherm').style.display = 'none'
+    }
+    requestAnimationFrame(loop)
+    return
+  }
+
   if (scherm === 'gameover') {
     if (keys[' ']) { levens = 3; laadStart() }
     renderer.render(scene, camera)
@@ -883,7 +1287,8 @@ function loop() {
 
   if (!inputUit) {
     // Beweging
-    const snelheid = 0.07
+    const heeftSchoenenNu = scherm === 'level' && schoenenAan && (snelleSchoenen || snelleSchoenenAltijd)
+    const snelheid = heeftSchoenenNu ? 0.17 : 0.07
     let dx = 0, dy = 0
     if (keys['ArrowUp']) dy -= snelheid
     if (keys['ArrowDown']) dy += snelheid
@@ -962,8 +1367,9 @@ function loop() {
 
         // Gooi shawarma elke 3 seconden
         s.gooimTimer += 1 / 60
-        if (s.gooimTimer > 3) {
+        if (s.gooimTimer > 5) {
           s.gooimTimer = 0
+          speelBoer()
           const dx = spelerX - s.x
           const dy = spelerY - s.y
           const afst = Math.sqrt(dx * dx + dy * dy)
