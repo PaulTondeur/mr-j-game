@@ -1,6 +1,22 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { levels } from './levels.js'
 import { themas } from './themas.js'
+
+// === MODEL LOADER ===
+const glbPad = '/src/models/kenney_platformer-kit/Models/GLB format/'
+const loader = new GLTFLoader()
+const modelCache = {}
+
+function laadModel(naam) {
+  if (modelCache[naam]) return Promise.resolve(modelCache[naam].clone())
+  return new Promise((resolve) => {
+    loader.load(glbPad + naam + '.glb', (gltf) => {
+      modelCache[naam] = gltf.scene
+      resolve(gltf.scene.clone())
+    }, undefined, () => resolve(null))
+  })
+}
 
 const TEGEL = 2
 
@@ -230,183 +246,27 @@ function bouwKaart(kaart) {
 }
 
 // === MARIO (gedetailleerd, Nintendo-stijl) ===
-function maakMario() {
+async function maakMario() {
+  const model = await laadModel('character-oopi')
+  if (model) {
+    model.scale.set(1.2, 1.2, 1.2)
+    model.position.y = 0.2
+    model.traverse((c) => { if (c.isMesh) { c.castShadow = true } })
+    scene.add(model)
+    return model
+  }
+  // Fallback: simpel blokje als model niet laadt
   const g = new THREE.Group()
-
-  // Materialen — kleuren exact van de afbeelding
-  const huid = new THREE.MeshStandardMaterial({ color: 0xfec29a, roughness: 0.65 })
-  const rood = new THREE.MeshStandardMaterial({ color: 0xe52521, roughness: 0.45 })
-  const blauw = new THREE.MeshStandardMaterial({ color: 0x2b3caa, roughness: 0.45 })
-  const bruin = new THREE.MeshStandardMaterial({ color: 0x7a3f10, roughness: 0.65 })
-  const snorKleur = new THREE.MeshStandardMaterial({ color: 0x1a0800, roughness: 0.7 })
-  const witMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 })
-  const zwartMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a })
-  const geelKnoop = new THREE.MeshStandardMaterial({ color: 0xf5d623, metalness: 0.4, roughness: 0.3 })
-
-  // === HOOFD (groot, rond — kenmerkend voor Mario) ===
-  const hoofd = new THREE.Mesh(new THREE.SphereGeometry(0.28, 20, 16), huid)
-  hoofd.position.y = 1.28
-  hoofd.scale.set(1, 0.95, 0.95)
-  hoofd.castShadow = true
-  g.add(hoofd)
-
-  // Oren (aan de zijkanten, half achter de pet)
-  for (const s of [-1, 1]) {
-    const oor = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), huid)
-    oor.position.set(s * 0.27, 1.2, 0.02)
-    g.add(oor)
-  }
-
-  // === OGEN (groot, rond, blauw — kenmerkend) ===
-  for (const s of [-0.1, 0.1]) {
-    // Oogkas (zwarte rand)
-    const oogRand = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), zwartMat)
-    oogRand.position.set(s, 1.3, -0.22)
-    g.add(oogRand)
-    // Wit
-    const oogWit = new THREE.Mesh(new THREE.SphereGeometry(0.065, 12, 10), witMat)
-    oogWit.position.set(s, 1.3, -0.23)
-    g.add(oogWit)
-    // Iris (helder blauw)
-    const iris = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 10),
-      new THREE.MeshStandardMaterial({ color: 0x3d7aed, roughness: 0.3 }))
-    iris.position.set(s, 1.3, -0.27)
-    g.add(iris)
-    // Pupil
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), zwartMat)
-    pupil.position.set(s, 1.3, -0.3)
-    g.add(pupil)
-    // Lichtpuntje
-    const lp = new THREE.Mesh(new THREE.SphereGeometry(0.01, 6, 6), witMat)
-    lp.position.set(s + 0.018, 1.32, -0.31)
-    g.add(lp)
-  }
-
-  // Wenkbrauwen (dik, zwart, licht gebogen)
-  for (const s of [-0.1, 0.1]) {
-    const wb = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.03, 0.03), zwartMat)
-    wb.position.set(s, 1.38, -0.24)
-    wb.rotation.z = s * -0.15
-    g.add(wb)
-  }
-
-  // === NEUS (groot, bol, prominent — het kenmerk van Mario) ===
-  const neus = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), huid)
-  neus.position.set(0, 1.18, -0.32)
-  neus.scale.set(1, 0.85, 1)
-  g.add(neus)
-
-  // === SNOR (dik, breed, zwart — waaiert uit naar de zijkanten) ===
-  // Hoofdlichaam van de snor
-  const snorMidden = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), snorKleur)
-  snorMidden.position.set(0, 1.08, -0.28)
-  snorMidden.scale.set(1.5, 0.6, 0.8)
-  g.add(snorMidden)
-  // Twee grote krullen naar de zijkanten
-  for (const s of [-1, 1]) {
-    const krul = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 8), snorKleur)
-    krul.position.set(s * 0.12, 1.07, -0.26)
-    krul.scale.set(1.3, 0.55, 0.7)
-    g.add(krul)
-    // Uiteinde krult licht omlaag
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), snorKleur)
-    tip.position.set(s * 0.2, 1.04, -0.22)
-    tip.scale.set(1, 0.5, 0.6)
-    g.add(tip)
-  }
-
-  // === PET (rood, met witte cirkel en M) ===
-  // Petbol (halve bol)
-  const petBol = new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.48), rood)
-  petBol.position.y = 1.42
-  g.add(petBol)
-  // Petrand
-  const petRand = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.035, 18), rood)
-  petRand.position.y = 1.42
-  g.add(petRand)
-  // Klep (breed, naar voren)
-  const klep = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.025, 0.2), rood)
-  klep.position.set(0, 1.41, -0.26)
-  g.add(klep)
-  // Klep afronding
-  const klepRond = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.025, 12, 1, false, 0, Math.PI), rood)
-  klepRond.rotation.x = Math.PI / 2
-  klepRond.position.set(0, 1.41, -0.36)
-  g.add(klepRond)
-  // Witte cirkel op de pet
-  const logoCircle = new THREE.Mesh(new THREE.CircleGeometry(0.1, 16), witMat)
-  logoCircle.position.set(0, 1.55, -0.22)
-  logoCircle.rotation.x = -0.5
-  g.add(logoCircle)
-  // Rode M op de witte cirkel (via een kleiner rood rondje als basis)
-  const logoM = new THREE.Mesh(new THREE.CircleGeometry(0.065, 16), rood)
-  logoM.position.set(0, 1.551, -0.219)
-  logoM.rotation.x = -0.5
-  g.add(logoM)
-
-  // === LICHAAM ===
-  // Rood shirt (bovenste deel)
-  const shirt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.3, 14), rood)
-  shirt.position.y = 0.78
-  shirt.castShadow = true
-  g.add(shirt)
-
-  // Blauwe overall (hoog, tot aan borst — kenmerkend)
-  const overall = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.27, 0.42, 14), blauw)
-  overall.position.y = 0.42
-  overall.castShadow = true
-  g.add(overall)
-
-  // Overallbovenstuk (borststuk, iets smaller)
-  const borstStuk = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.15), blauw)
-  borstStuk.position.set(0, 0.7, -0.08)
-  g.add(borstStuk)
-
-  // Gele knopen (rond, groot, aan de zijkanten van het borststuk)
-  for (const s of [-0.16, 0.16]) {
-    const knoop = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), geelKnoop)
-    knoop.position.set(s, 0.68, -0.17)
-    g.add(knoop)
-  }
-
-  // === ARMEN (rood shirt, witte handschoenen) ===
-  for (const s of [-1, 1]) {
-    // Bovenarm
-    const bovenarm = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.07, 0.2, 10), rood)
-    bovenarm.position.set(s * 0.3, 0.78, 0)
-    bovenarm.rotation.z = s * 0.25
-    g.add(bovenarm)
-    // Onderarm
-    const onderarm = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.065, 0.15, 10), rood)
-    onderarm.position.set(s * 0.34, 0.62, 0)
-    onderarm.rotation.z = s * 0.1
-    g.add(onderarm)
-    // Handschoen (groot, bol, wit)
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), witMat)
-    hand.position.set(s * 0.36, 0.5, 0)
-    hand.name = s < 0 ? 'linkerHand' : 'rechterHand'
-    hand.castShadow = true
-    g.add(hand)
-  }
-
-  // === BENEN (blauw + bruine schoenen) ===
-  for (const s of [-0.11, 0.11]) {
-    // Been (blauw, overall-stof)
-    const been = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.2, 10), blauw)
-    been.position.set(s, 0.15, 0)
-    been.name = s < 0 ? 'linkerBeen' : 'rechterBeen'
-    g.add(been)
-
-    // Schoen (groot, afgerond, bruin)
-    const schoen = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), bruin)
-    schoen.scale.set(0.75, 0.45, 1.3)
-    schoen.position.set(s, 0.02, -0.05)
-    schoen.name = s < 0 ? 'linkerSchoen' : 'rechterSchoen'
-    schoen.castShadow = true
-    g.add(schoen)
-  }
-
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.2, 0.25, 0.8, 10),
+    new THREE.MeshStandardMaterial({ color: 0xe52521 })
+  )
+  body.position.y = 0.6; body.castShadow = true; g.add(body)
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xfec29a })
+  )
+  head.position.y = 1.2; head.castShadow = true; g.add(head)
   g.position.y = 0.2
   scene.add(g)
   return g
@@ -588,28 +448,26 @@ function maakVliegendeShawarma() {
 }
 
 // === FINISH (vlagpaal + huisje) ===
-function maakFinishPaal(fx, fy) {
+async function maakFinishPaal(fx, fy) {
   const g = new THREE.Group()
 
-  // Paal
-  const paal = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 4, 8), new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.5 }))
-  paal.position.y = 2.2; paal.castShadow = true; g.add(paal)
+  // Probeer Kenney flag model
+  const flagModel = await laadModel('flag')
+  if (flagModel) {
+    flagModel.scale.set(1.5, 1.5, 1.5)
+    flagModel.traverse((c) => { if (c.isMesh) c.castShadow = true })
+    flagModel.name = 'vlag'
+    g.add(flagModel)
+  } else {
+    // Fallback
+    const paal = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 4, 8), new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.5 }))
+    paal.position.y = 2.2; paal.castShadow = true; g.add(paal)
+    const vlag = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.5), new THREE.MeshStandardMaterial({ color: 0x44bb44, side: THREE.DoubleSide }))
+    vlag.position.set(0.4, 3.8, 0); vlag.name = 'vlag'; g.add(vlag)
+  }
 
-  // Gouden bol bovenop
-  const bol = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 10), new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.7, roughness: 0.2 }))
-  bol.position.y = 4.2; g.add(bol)
-
-  // Vlag (begint bovenaan)
-  const vlagGeo = new THREE.PlaneGeometry(0.8, 0.5)
-  const vlagMat = new THREE.MeshStandardMaterial({ color: 0x44bb44, side: THREE.DoubleSide })
-  const vlag = new THREE.Mesh(vlagGeo, vlagMat)
-  vlag.position.set(0.4, 3.8, 0)
-  vlag.name = 'vlag'
-  g.add(vlag)
-
-  // Licht
   const paalLicht = new THREE.PointLight(0xffd700, 1, 5)
-  paalLicht.position.set(0, 4.2, 0); g.add(paalLicht)
+  paalLicht.position.set(0, 2, 0); g.add(paalLicht)
 
   g.position.set(fx * TEGEL, 0.2, fy * TEGEL)
   scene.add(g)
@@ -643,7 +501,7 @@ function maakFinishPaal(fx, fy) {
 }
 
 // === PORTAAL ===
-function maakPortaal(px, py, label, isOpen, levelIdx) {
+async function maakPortaal(px, py, label, isOpen, levelIdx) {
   const g = new THREE.Group()
   const goud = new THREE.MeshStandardMaterial({ color: isOpen ? 0xffd700 : 0x666666, metalness: 0.6 })
 
@@ -703,20 +561,19 @@ function maakPortaal(px, py, label, isOpen, levelIdx) {
   g.add(bordGroep)
 
   if (!isOpen) {
-    // Slot — boven de ring, niet erop
-    const slotGroep = new THREE.Group()
-    const slotBody = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.2, 0.12), new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5, roughness: 0.3 }))
-    slotGroep.add(slotBody)
-    const beugel = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.025, 8, 12, Math.PI), new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.6 }))
-    beugel.position.y = 0.15
-    slotGroep.add(beugel)
-    // Sleutelgat
-    const gat = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.13, 6), new THREE.MeshStandardMaterial({ color: 0x222222 }))
-    gat.rotation.x = Math.PI / 2
-    gat.position.z = -0.06
-    slotGroep.add(gat)
-    slotGroep.position.y = 1.4
-    g.add(slotGroep)
+    // Kenney lock model
+    const lockModel = await laadModel('lock')
+    if (lockModel) {
+      lockModel.scale.set(1.5, 1.5, 1.5)
+      lockModel.position.y = 1.4
+      g.add(lockModel)
+    } else {
+      const slotGroep = new THREE.Group()
+      const slotBody = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.2, 0.12), new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5 }))
+      slotGroep.add(slotBody)
+      slotGroep.position.y = 1.4
+      g.add(slotGroep)
+    }
   }
 
   g.position.set(px * TEGEL, 0.2, py * TEGEL)
@@ -761,14 +618,14 @@ const startKaart = [
   '##########################',
 ]
 
-function laadStart() {
+async function laadStart() {
   clearWereld()
   scherm = 'start'
   inputUit = false
   actieveKaart = startKaart
 
   bouwKaart(startKaart)
-  mario = maakMario()
+  mario = await maakMario()
 
   const parsed = parseKaart(startKaart)
   spelerX = parsed.start.x
@@ -778,7 +635,7 @@ function laadStart() {
   portalenData = []
   for (const p of parsed.portalen) {
     const isOpen = ontgrendeld[p.level]
-    const mesh = maakPortaal(p.x, p.y, p.label, isOpen, p.level)
+    const mesh = await maakPortaal(p.x, p.y, p.label, isOpen, p.level)
     portalenData.push({ mesh, ...p, open: isOpen })
   }
 
@@ -789,7 +646,7 @@ function laadStart() {
   updateHUD()
 }
 
-function laadLevel(nummer) {
+async function laadLevel(nummer) {
   clearWereld()
   scherm = 'level'
   levelNummer = nummer
@@ -821,7 +678,7 @@ function laadLevel(nummer) {
   }
 
   bouwKaart(level.kaart)
-  mario = maakMario()
+  mario = await maakMario()
 
   const parsed = parseKaart(level.kaart)
   spelerX = parsed.start.x
@@ -831,7 +688,7 @@ function laadLevel(nummer) {
   finishPos = parsed.finish
 
   // Finish
-  if (finishPos) maakFinishPaal(finishPos.x, finishPos.y)
+  if (finishPos) await maakFinishPaal(finishPos.x, finishPos.y)
 
   // Meester Sanders
   sandersData = parsed.sanders.map(s => ({
