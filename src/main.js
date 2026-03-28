@@ -6,28 +6,28 @@ const TEGEL = 2
 
 // === RENDERER ===
 const renderer = new THREE.WebGLRenderer({ antialias: true })
-renderer.setSize(window.innerWidth, window.innerHeight)
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 renderer.shadowMap.enabled = true
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.domElement.style.position = 'fixed'
-renderer.domElement.style.top = '0'
-renderer.domElement.style.left = '0'
-renderer.domElement.style.width = '100%'
-renderer.domElement.style.height = '100%'
 document.body.prepend(renderer.domElement)
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0x87ceeb)
 scene.fog = new THREE.Fog(0x87ceeb, 30, 60)
 
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200)
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200)
 
-window.addEventListener('resize', () => {
-  renderer.setSize(window.innerWidth, window.innerHeight)
-  camera.aspect = window.innerWidth / window.innerHeight
+function resize() {
+  const vv = window.visualViewport
+  const w = vv ? vv.width : window.innerWidth
+  const h = vv ? vv.height : window.innerHeight
+  camera.aspect = w / h
   camera.updateProjectionMatrix()
-})
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.setSize(w, h, false)
+}
+resize()
+window.addEventListener('resize', resize)
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resize)
 
 // === LICHT ===
 scene.add(new THREE.AmbientLight(0xffffff, 0.6))
