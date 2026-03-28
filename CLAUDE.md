@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Dit is Mr. J's Game — een 3D browsergame gebouwd in Mario-achtige stijl met Three.js.
+Dit is Mr. J's Game — een 3D browsergame in Mario-achtige stijl met Three.js.
 
 ## Commands
 
