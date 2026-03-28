@@ -8,10 +8,29 @@ const glbPad = import.meta.env.BASE_URL + 'models/kenney/'
 const loader = new GLTFLoader()
 const modelCache = {}
 
+// Kenney colormap texture (gedeeld door alle modellen)
+const textureLoader = new THREE.TextureLoader()
+let kenneyTexture = null
+textureLoader.load(import.meta.env.BASE_URL + 'models/kenney/variation-a.png', (tex) => {
+  tex.flipY = false
+  tex.colorSpace = THREE.SRGBColorSpace
+  kenneyTexture = tex
+})
+
 function laadModel(naam) {
   if (modelCache[naam]) return Promise.resolve(modelCache[naam].clone())
   return new Promise((resolve) => {
     loader.load(glbPad + naam + '.glb', (gltf) => {
+      // Pas Kenney texture toe op alle meshes
+      if (kenneyTexture) {
+        gltf.scene.traverse(child => {
+          if (child.isMesh && child.material) {
+            child.material = child.material.clone()
+            child.material.map = kenneyTexture
+            child.material.needsUpdate = true
+          }
+        })
+      }
       modelCache[naam] = gltf.scene
       resolve(gltf.scene.clone())
     }, undefined, () => resolve(null))
@@ -321,6 +340,34 @@ function maakFotoHoofdGeo() {
 function maakMario() {
   const g = new THREE.Group()
 
+  // Kenney karakter: laad 3D model
+  if (gekozenKarakter === 'kenney') {
+    loader.load(glbPad + 'character-oozi.glb', (gltf) => {
+      const model = gltf.scene
+      // Meet de grootte en schaal naar Mario-formaat
+      const box = new THREE.Box3().setFromObject(model)
+      const hoogte = box.max.y - box.min.y
+      const schaal = hoogte > 0 ? 1.6 / hoogte : 3
+      model.scale.set(schaal, schaal, schaal)
+      model.position.y = -box.min.y * schaal
+      model.rotation.y = Math.PI // Kenney model kijkt standaard andere kant op
+      // Pas texture toe als die geladen is
+      if (kenneyTexture) {
+        model.traverse(child => {
+          if (child.isMesh) {
+            child.material = child.material.clone()
+            child.material.map = kenneyTexture
+            child.material.needsUpdate = true
+          }
+        })
+      }
+      g.add(model)
+    })
+    g.position.y = 0.2
+    scene.add(g)
+    return g
+  }
+
   // Kleuren per karakter
   const isMario = gekozenKarakter === 'mario' || gekozenKarakter === 'foto'
   const petKleur = isMario ? 0xe52521 : 0x1ea52a
@@ -426,56 +473,48 @@ function maakPaddestoel(px, py) {
 
 // === MUNT (draaiend gouden muntje) ===
 function maakMunt(mx, my) {
+  // Fallback tot Kenney model geladen is
   const g = new THREE.Group()
-  const goud = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.7, roughness: 0.2 })
-  const munt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 16), goud)
-  munt.rotation.x = Math.PI / 2
-  munt.castShadow = true
-  g.add(munt)
-  // Rand
-  const rand = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.02, 8, 16), goud)
-  rand.rotation.x = Math.PI / 2
-  g.add(rand)
+  const fallback = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.2, 0.2, 0.05, 16),
+    new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.7, roughness: 0.2 })
+  )
+  fallback.rotation.x = Math.PI / 2
+  fallback.name = 'fallback'
+  g.add(fallback)
   g.position.set(mx * TEGEL, 0.7, my * TEGEL)
   scene.add(g)
   wereldObjecten.push(g)
+  laadModel('coin-gold').then(model => {
+    if (model && g.parent) {
+      const fb = g.getObjectByName('fallback')
+      if (fb) g.remove(fb)
+      model.scale.set(1.2, 1.2, 1.2)
+      g.add(model)
+    }
+  })
   return g
 }
 
 // === VRAAGTEKEN BLOK (geeft beloning) ===
 function maakVraagBlok(vx, vy) {
   const g = new THREE.Group()
-  // Gouden blok
-  const blokMat = new THREE.MeshStandardMaterial({ color: 0xdda020, roughness: 0.4 })
-  const blok = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), blokMat)
-  blok.castShadow = true
-  blok.name = 'blok'
-  g.add(blok)
-  // Rand
-  const randMat = new THREE.MeshStandardMaterial({ color: 0xaa7010, roughness: 0.5 })
-  const randGeo = new THREE.BoxGeometry(0.85, 0.85, 0.85)
-  const randMesh = new THREE.Mesh(new THREE.EdgesGeometry(randGeo),
-    new THREE.LineBasicMaterial({ color: 0xaa7010, linewidth: 2 }))
-  g.add(randMesh)
-  // Vraagteken tekst op 4 zijden
-  const qCanvas = document.createElement('canvas')
-  qCanvas.width = 64; qCanvas.height = 64
-  const qctx = qCanvas.getContext('2d')
-  qctx.fillStyle = '#dda020'
-  qctx.fillRect(0, 0, 64, 64)
-  qctx.fillStyle = '#fff'
-  qctx.font = 'bold 48px monospace'
-  qctx.textAlign = 'center'
-  qctx.textBaseline = 'middle'
-  qctx.fillText('?', 32, 32)
-  const qTex = new THREE.CanvasTexture(qCanvas)
-  for (const [px,py,pz,ry] of [[0,0,0.41,0],[0,0,-0.41,Math.PI],[0.41,0,0,Math.PI/2],[-0.41,0,0,-Math.PI/2]]) {
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7),
-      new THREE.MeshBasicMaterial({ map: qTex, transparent: true }))
-    face.position.set(px, py, pz)
-    face.rotation.y = ry
-    g.add(face)
-  }
+  // Fallback
+  const fallback = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 0.8, 0.8),
+    new THREE.MeshStandardMaterial({ color: 0xdda020, roughness: 0.4 })
+  )
+  fallback.name = 'blok'; g.add(fallback)
+  // Kenney chest model
+  laadModel('chest').then(model => {
+    if (model && g.parent) {
+      const fb = g.getObjectByName('blok')
+      if (fb) g.remove(fb)
+      model.scale.set(1.5, 1.5, 1.5)
+      model.name = 'blok'
+      g.add(model)
+    }
+  })
   // Licht
   const licht = new THREE.PointLight(0xffd700, 0.3, 3)
   licht.position.y = 0.5; g.add(licht)
@@ -1011,15 +1050,17 @@ function parseKaart(kaart) {
 
 // Startscherm kaart
 const startKaart = [
-  '##############################',
-  '#............................#',
-  '#.S.1..2..3..4..5............#',
-  '#............................#',
-  '#...6..7..8..9..0..A.........#',
-  '#............................#',
-  '#............................#',
-  '#............................#',
-  '##############################',
+  '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
+  '~..S..1.....2.....3.....4.....5.....~',
+  '~...................................~',
+  '~...................................~',
+  '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...~',
+  '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...~',
+  '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...~',
+  '~....A.....0.....9.....8.....7..6...~',
+  '~...................................~',
+  '~...................................~',
+  '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
 ]
 
 function laadStart() {
@@ -1061,7 +1102,7 @@ function laadLevel(nummer) {
   inputUit = false
 
   const level = levels[nummer]
-  actieveKaart = level.kaart
+  actieveKaart = [...level.kaart] // kopie zodat we tiles kunnen aanpassen voor decoratie-collision
 
   // Thema kleuren
   const thema = themas[level.thema]
@@ -1108,6 +1149,80 @@ function laadLevel(nummer) {
     vy: 0, hoogte: 0, opGrond: true,
   }))
   shawarmaData = []
+
+  // Kenney decoratie-modellen per thema
+  const themaModellen = {
+    strand:       { groot: ['tree', 'tree'], klein: ['flowers', 'plant', 'rocks'] },
+    bos:          { groot: ['tree-pine', 'tree-pine-small', 'tree'], klein: ['mushrooms', 'plant', 'flowers-tall'] },
+    regen:        { groot: ['tree', 'tree-pine'], klein: ['mushrooms', 'rocks', 'stones'] },
+    zomer:        { groot: ['tree', 'tree-pine-small'], klein: ['flowers', 'flowers-tall', 'plant'] },
+    bloemen:      { groot: ['tree-pine-small'], klein: ['flowers', 'flowers-tall', 'plant', 'flowers'] },
+    mario:        { groot: ['pipe'], klein: ['mushrooms', 'brick', 'coin-gold'] },
+    huis:         { groot: ['tree-pine-small'], klein: ['fence-straight', 'flowers', 'plant'] },
+    spookjes:     { groot: ['tree'], klein: ['rocks', 'stones', 'bomb'] },
+    boerderij:    { groot: ['tree', 'tree-pine-small'], klein: ['fence-straight', 'barrel', 'crate'] },
+    borden:       { groot: ['tree-pine', 'tree'], klein: ['sign', 'flowers', 'plant'] },
+    achtervolging:{ groot: ['tree-pine'], klein: ['rocks', 'barrel', 'crate'] },
+  }
+  const decoConfig = themaModellen[level.thema] || themaModellen.bos
+  // Verzamel lege tiles ver van start/finish/sanders
+  const decoTiles = []
+  for (let rij = 0; rij < level.kaart.length; rij++)
+    for (let kolom = 0; kolom < level.kaart[rij].length; kolom++)
+      if (level.kaart[rij][kolom] === '.') {
+        const dS = Math.abs(rij + 0.5 - parsed.start.y) + Math.abs(kolom + 0.5 - parsed.start.x)
+        const dF = parsed.finish ? Math.abs(rij + 0.5 - parsed.finish.y) + Math.abs(kolom + 0.5 - parsed.finish.x) : 99
+        if (dS > 3 && dF > 2) decoTiles.push({ x: kolom + 0.5, y: rij + 0.5 })
+      }
+  for (let i = decoTiles.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [decoTiles[i], decoTiles[j]] = [decoTiles[j], decoTiles[i]]
+  }
+  // Plaats ~8% grote modellen (blokkeren) en ~10% kleine (decoratie)
+  const aantalGroot = Math.min(Math.floor(decoTiles.length * 0.08), 12)
+  const aantalKlein = Math.min(Math.floor(decoTiles.length * 0.10), 15)
+  for (let i = 0; i < aantalGroot + aantalKlein && i < decoTiles.length; i++) {
+    const t = decoTiles[i]
+    const isGroot = i < aantalGroot
+    const lijst = isGroot ? decoConfig.groot : decoConfig.klein
+    const naam = lijst[Math.floor(Math.random() * lijst.length)]
+    const schaal = isGroot ? 1.2 + Math.random() * 0.5 : 0.8 + Math.random() * 0.4
+    laadModel(naam).then(model => {
+      if (model) {
+        model.scale.set(schaal, schaal, schaal)
+        model.position.set(t.x * TEGEL, 0.2, t.y * TEGEL)
+        model.rotation.y = Math.random() * Math.PI * 2
+        scene.add(model)
+        wereldObjecten.push(model)
+      }
+    })
+    // Grote modellen blokkeren: markeer tile als '#' maar alleen als het pad nog vrij blijft
+    if (isGroot) {
+      const rij = Math.floor(t.y), kolom = Math.floor(t.x)
+      if (actieveKaart[rij]) {
+        const backup = actieveKaart[rij]
+        actieveKaart[rij] = actieveKaart[rij].substring(0, kolom) + '#' + actieveKaart[rij].substring(kolom + 1)
+        // BFS check: kan speler nog bij finish?
+        if (parsed.finish) {
+          const sr = Math.floor(parsed.start.y), sc = Math.floor(parsed.start.x)
+          const fr = Math.floor(parsed.finish.y), fc = Math.floor(parsed.finish.x)
+          const vis = new Set(); vis.add(sr+','+sc)
+          const q = [[sr,sc]]; let bereikt = false
+          while (q.length) {
+            const [r,c] = q.shift()
+            if (r===fr && c===fc) { bereikt = true; break }
+            for (const [dr,dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+              const nr=r+dr, nc=c+dc, k=nr+','+nc
+              if (!vis.has(k) && actieveKaart[nr]?.[nc] && actieveKaart[nr][nc]!=='~' && actieveKaart[nr][nc]!=='#') {
+                vis.add(k); q.push([nr,nc])
+              }
+            }
+          }
+          if (!bereikt) actieveKaart[rij] = backup // revert als pad geblokkeerd
+        }
+      }
+    }
+  }
 
   // Muntjes en vraagtekens spawnen op lege tiles
   const legeTiles = []
@@ -1389,11 +1504,12 @@ window.kiesKarakter = function(type) {
 
 function updateKarakterScherm() {
   // Markeer actieve selectie
-  for (const id of ['kar-mario', 'kar-luigi', 'kar-foto']) {
+  for (const id of ['kar-mario', 'kar-luigi', 'kar-kenney', 'kar-foto']) {
     const el = document.getElementById(id)
     if (!el) continue
     const isActief = (id === 'kar-mario' && gekozenKarakter === 'mario') ||
                      (id === 'kar-luigi' && gekozenKarakter === 'luigi') ||
+                     (id === 'kar-kenney' && gekozenKarakter === 'kenney') ||
                      (id === 'kar-foto' && gekozenKarakter === 'foto')
     el.style.borderColor = isActief ? '#44dd44' : '#555'
     el.style.background = isActief ? 'rgba(68,221,68,0.15)' : 'rgba(255,255,255,0.1)'
@@ -1402,6 +1518,7 @@ function updateKarakterScherm() {
   const status = document.getElementById('karakter-status')
   if (gekozenKarakter === 'mario') status.textContent = '✅ Mario gekozen'
   else if (gekozenKarakter === 'luigi') status.textContent = '✅ Luigi gekozen'
+  else if (gekozenKarakter === 'kenney') status.textContent = '✅ Kenney gekozen'
   else status.textContent = '✅ Eigen foto gekozen'
   // Toon opgeslagen foto als die er is
   const savedFoto = localStorage.getItem('mrj-foto')
