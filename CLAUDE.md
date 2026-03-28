@@ -10,7 +10,6 @@ Dit is Mr. J's Game — een browsergame gebouwd in Mario-achtige stijl.
 
 - `npm run dev` — start Vite dev server met hot reloading
 - `npm run build` — production build
-- `./autocommit.sh` — auto-commit elke 2 minuten (of `./autocommit.sh 60` voor elke minuut)
 
 ## Architecture
 
