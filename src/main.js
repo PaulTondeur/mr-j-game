@@ -291,6 +291,28 @@ function bouwKaart(kaart) {
 }
 
 // === MARIO (gedetailleerd, Nintendo-stijl) ===
+function setupFotoTexture(tex) {
+  tex.offset.x = -0.25
+  tex.offset.y = -0.2
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+}
+
+function maakFotoHoofdGeo() {
+  const geo = new THREE.SphereGeometry(0.25, 20, 16)
+  // In Three.js SphereGeometry: U=0→-X, U=0.25→+Z, U=0.5→+X, U=0.75→-Z
+  // Mario's gezicht is -Z. Texture centrum is U=0.5.
+  // Shift +0.25 zodat texture centrum (0.5) → 0.75 → -Z (voorkant)
+  const uvs = geo.attributes.uv
+  for (let i = 0; i < uvs.count; i++) {
+    let u = uvs.getX(i) + 0.25
+    if (u > 1) u -= 1
+    uvs.setX(i, u)
+  }
+  uvs.needsUpdate = true
+  return geo
+}
+
 function maakMario() {
   const g = new THREE.Group()
 
@@ -310,14 +332,12 @@ function maakMario() {
 
   // Hoofd
   if (gekozenKarakter === 'foto' && fotoTexture) {
-    // Foto op de voorkant van het hoofd (bol-texture)
-    const hoofd = new THREE.Mesh(new THREE.SphereGeometry(0.25, 20, 16), huid)
-    hoofd.position.y = 1.2; hoofd.castShadow = true; g.add(hoofd)
-    const gezichtGeo = new THREE.SphereGeometry(0.251, 20, 16, Math.PI * 1.25, Math.PI * 0.5, Math.PI * 0.2, Math.PI * 0.6)
+    // Hoofd met foto rondom de hele bol, gezicht naar voren (-Z)
+    // Game foto is al gespiegeld opgeslagen, dus geen extra UV shift nodig
+    setupFotoTexture(fotoTexture)
     const fotoMat = new THREE.MeshBasicMaterial({ map: fotoTexture })
-    const gezicht = new THREE.Mesh(gezichtGeo, fotoMat)
-    gezicht.position.y = 1.2
-    g.add(gezicht)
+    const hoofd = new THREE.Mesh(new THREE.SphereGeometry(0.25, 20, 16), fotoMat)
+    hoofd.position.y = 1.2; hoofd.castShadow = true; g.add(hoofd)
   } else {
     // Normaal hoofd met ogen/neus/snor
     const hoofd = new THREE.Mesh(new THREE.SphereGeometry(0.25, 14, 12), huid)
@@ -337,13 +357,13 @@ function maakMario() {
       const snor = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), snorMat)
       snor.position.set(s * 0.1, 1.06, -0.22); snor.scale.set(1.2, 0.5, 0.7); g.add(snor)
     }
-  }
 
-  // Pet
-  const pet = new THREE.Mesh(new THREE.SphereGeometry(0.27, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), petMat)
-  pet.position.y = 1.35; g.add(pet)
-  const klep = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.03, 0.18), petMat)
-  klep.position.set(0, 1.33, -0.22); g.add(klep)
+    // Pet (alleen bij mario/luigi, niet bij eigen foto)
+    const pet = new THREE.Mesh(new THREE.SphereGeometry(0.27, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), petMat)
+    pet.position.y = 1.35; g.add(pet)
+    const klep = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.03, 0.18), petMat)
+    klep.position.set(0, 1.33, -0.22); g.add(klep)
+  }
 
   // Lichaam
   const shirt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.35, 12), shirtMat)
@@ -1202,6 +1222,7 @@ let cameraView = 'normaal' // 'normaal' of 'topdown'
 // Menu openen → pauzeert het spel
 window.openMenu = function(id) {
   if (id === 'opslag-scherm') window.openOpslag()
+  if (id === 'karakter-scherm') updateKarakterScherm()
   if (id === 'instellingen-scherm') updateInstellingenLabels()
   document.getElementById(id).style.display = 'flex'
   if (scherm === 'level') {
@@ -1354,12 +1375,41 @@ window.toggleSchoenen = function() {
 window.kiesKarakter = function(type) {
   gekozenKarakter = type
   localStorage.setItem('mrj-karakter', type)
-  document.getElementById('karakter-status').textContent =
-    type === 'mario' ? '✅ Mario gekozen!' : type === 'luigi' ? '✅ Luigi gekozen!' : '✅ Eigen foto gekozen! Open 📸 om een foto te nemen.'
+  updateKarakterScherm()
   // Herbouw Mario met nieuwe kleuren
   if (mario) { scene.remove(mario) }
   mario = maakMario()
   mario.position.set(spelerX * TEGEL, 0.2, spelerY * TEGEL)
+}
+
+function updateKarakterScherm() {
+  // Markeer actieve selectie
+  for (const id of ['kar-mario', 'kar-luigi', 'kar-foto']) {
+    const el = document.getElementById(id)
+    if (!el) continue
+    const isActief = (id === 'kar-mario' && gekozenKarakter === 'mario') ||
+                     (id === 'kar-luigi' && gekozenKarakter === 'luigi') ||
+                     (id === 'kar-foto' && gekozenKarakter === 'foto')
+    el.style.borderColor = isActief ? '#44dd44' : '#555'
+    el.style.background = isActief ? 'rgba(68,221,68,0.15)' : 'rgba(255,255,255,0.1)'
+  }
+  // Status tekst
+  const status = document.getElementById('karakter-status')
+  if (gekozenKarakter === 'mario') status.textContent = '✅ Mario gekozen'
+  else if (gekozenKarakter === 'luigi') status.textContent = '✅ Luigi gekozen'
+  else status.textContent = '✅ Eigen foto gekozen'
+  // Toon opgeslagen foto als die er is
+  const savedFoto = localStorage.getItem('mrj-foto')
+  const fotoPreview = document.getElementById('kar-foto-preview')
+  const fotoIcon = document.getElementById('kar-foto-icon')
+  if (savedFoto) {
+    document.getElementById('kar-foto-img').src = savedFoto
+    fotoPreview.style.display = 'block'
+    fotoIcon.style.display = 'none'
+  } else {
+    fotoPreview.style.display = 'none'
+    fotoIcon.style.display = 'block'
+  }
 }
 
 let webcamStream = null
@@ -1378,6 +1428,24 @@ window.openWebcam = function() {
       webcamStream = stream
       video.srcObject = stream
       startPreview3D()
+      // Bestaande foto? Toon die direct als "genomen" foto
+      const savedFoto = localStorage.getItem('mrj-foto')
+      if (savedFoto) {
+        const img = new Image()
+        img.onload = function() {
+          const canvas = document.getElementById('webcam-canvas')
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0, 256, 256)
+          // Toon in het rondje
+          const preview = document.getElementById('foto-preview')
+          preview.getContext('2d').drawImage(canvas, 0, 0)
+          preview.style.display = 'block'
+          fotoBevroren = true
+          document.getElementById('webcam-knoppen-live').style.display = 'none'
+          document.getElementById('webcam-knoppen-foto').style.display = 'flex'
+        }
+        img.src = savedFoto
+      }
     })
     .catch(() => { document.getElementById('karakter-status').textContent = '❌ Geen webcam gevonden!' })
 }
@@ -1394,14 +1462,14 @@ function startPreview3D() {
   const licht = new THREE.DirectionalLight(0xffffff, 1.2)
   licht.position.set(1, 3, 4)
   previewScene.add(licht)
-  previewCamera = new THREE.PerspectiveCamera(30, 60 / 80, 0.1, 50)
-  previewCamera.position.set(0, 1.1, 2.0) // Recht van voren
-  previewCamera.lookAt(0, 0.85, 0)
+  previewCamera = new THREE.PerspectiveCamera(30, 450 / 630, 0.1, 50)
+  previewCamera.position.set(0, 0.7, 3.2)
+  previewCamera.lookAt(0, 0.65, 0)
 
   // Maak een foto-canvas voor de live texture
   previewFotoCanvas = document.createElement('canvas')
-  previewFotoCanvas.width = 128
-  previewFotoCanvas.height = 128
+  previewFotoCanvas.width = 256
+  previewFotoCanvas.height = 256
 
   // Bouw preview Mario met foto-texture
   bouwPreviewMario()
@@ -1409,28 +1477,26 @@ function startPreview3D() {
   // Live update loop
   function previewLoop() {
     previewAnimId = requestAnimationFrame(previewLoop)
-    // Update foto texture van webcam
     const video = document.getElementById('webcam-video')
-    if (video.readyState >= 2) {
+    if (video.readyState >= 2 && !fotoBevroren) {
+      // Live webcam → texture
       const ctx = previewFotoCanvas.getContext('2d')
       ctx.save()
-      ctx.translate(128, 0)
+      ctx.translate(256, 0)
       ctx.scale(-1, 1)
-      ctx.drawImage(video, 0, 0, 128, 128)
+      ctx.drawImage(video, 0, 0, 256, 256)
       ctx.restore()
-      // Circulair maken
-      ctx.globalCompositeOperation = 'destination-in'
-      ctx.beginPath()
-      ctx.arc(64, 64, 64, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.globalCompositeOperation = 'source-over'
-      // Update texture
-      if (previewMario && previewMario.userData.fotoTex) {
-        previewMario.userData.fotoTex.needsUpdate = true
-      }
     }
-    // Poppetje staat stil, recht naar camera
-    if (previewMario) previewMario.rotation.y = 0
+    if (fotoBevroren) {
+      // Toon de genomen foto (uit webcam-canvas)
+      const fotoCanvas = document.getElementById('webcam-canvas')
+      previewFotoCanvas.getContext('2d').drawImage(fotoCanvas, 0, 0, 256, 256)
+    }
+    if (previewMario && previewMario.userData.fotoTex) {
+      previewMario.userData.fotoTex.needsUpdate = true
+    }
+    // Poppetje draait langzaam
+    if (previewMario) previewMario.rotation.y = Math.sin(Date.now() / 2000) * 0.5
     previewRenderer.render(previewScene, previewCamera)
   }
   previewLoop()
@@ -1441,33 +1507,19 @@ function bouwPreviewMario() {
   const g = new THREE.Group()
   const rood = new THREE.MeshStandardMaterial({ color: 0xe52521, roughness: 0.5 })
   const blauw = new THREE.MeshStandardMaterial({ color: 0x2b3caa, roughness: 0.5 })
-  const huid = new THREE.MeshStandardMaterial({ color: 0xfec29a, roughness: 0.7 })
   const wit = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 })
   const bruin = new THREE.MeshStandardMaterial({ color: 0x7a3f10, roughness: 0.7 })
 
-  // Hoofd met foto op de voorkant van de bol
+  // Hoofd met live webcam foto rondom de hele bol
   const fotoTex = new THREE.CanvasTexture(previewFotoCanvas)
-  const hoofdMat = [
-    huid, huid, huid, huid,
-    new THREE.MeshBasicMaterial({ map: fotoTex }), // voorkant
-    huid, // achterkant
-  ]
-  // Gebruik een bol met de foto als texture op de voorkant
-  const hoofd = new THREE.Mesh(new THREE.SphereGeometry(0.25, 20, 16), huid)
+  fotoTex.wrapS = THREE.RepeatWrapping
+  fotoTex.wrapT = THREE.RepeatWrapping
+  const fotoMat = new THREE.MeshBasicMaterial({ map: fotoTex })
+  const hoofd = new THREE.Mesh(maakFotoHoofdGeo(), fotoMat)
   hoofd.position.y = 1.2; g.add(hoofd)
-  // Foto als halve bol op de voorkant geplakt
-  const gezichtGeo = new THREE.SphereGeometry(0.251, 20, 16, Math.PI * 1.25, Math.PI * 0.5, Math.PI * 0.2, Math.PI * 0.6)
-  const fotoMat = new THREE.MeshBasicMaterial({ map: fotoTex, transparent: false })
-  const gezicht = new THREE.Mesh(gezichtGeo, fotoMat)
-  gezicht.position.y = 1.2
-  g.add(gezicht)
   g.userData.fotoTex = fotoTex
 
-  // Pet
-  const pet = new THREE.Mesh(new THREE.SphereGeometry(0.27, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), rood)
-  pet.position.y = 1.35; g.add(pet)
-  const klep = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.03, 0.18), rood)
-  klep.position.set(0, 1.33, -0.22); g.add(klep)
+  // Geen pet — gezicht moet zichtbaar zijn
 
   // Lichaam
   const shirt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.35, 12), rood)
@@ -1500,32 +1552,49 @@ window.sluitWebcam = function() {
   if (previewAnimId) { cancelAnimationFrame(previewAnimId); previewAnimId = null }
   if (previewRenderer) { previewRenderer.dispose(); previewRenderer = null }
   previewScene = null; previewMario = null
+  fotoBevroren = false
   document.getElementById('webcam-scherm').style.display = 'none'
+  document.getElementById('foto-preview').style.display = 'none'
+  document.getElementById('webcam-knoppen-live').style.display = 'flex'
+  document.getElementById('webcam-knoppen-foto').style.display = 'none'
 }
 
-window.neemEnBevestigFoto = function() {
+let fotoBevroren = false // of de webcam gepauzeerd is na foto nemen
+
+// Stap 1: neem foto (freeze webcam, toon bevestigknoppen)
+window.neemFoto = function() {
   const video = document.getElementById('webcam-video')
   const canvas = document.getElementById('webcam-canvas')
   const ctx = canvas.getContext('2d')
 
   ctx.save()
-  ctx.translate(128, 0)
+  ctx.translate(256, 0)
   ctx.scale(-1, 1)
-  ctx.drawImage(video, 0, 0, 128, 128)
+  ctx.drawImage(video, 0, 0, 256, 256)
   ctx.restore()
-  ctx.globalCompositeOperation = 'destination-in'
-  ctx.beginPath()
-  ctx.arc(64, 64, 64, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.globalCompositeOperation = 'source-over'
+
+  // Toon de genomen foto over de webcam
+  const preview = document.getElementById('foto-preview')
+  preview.getContext('2d').drawImage(canvas, 0, 0)
+  preview.style.display = 'block'
+
+  fotoBevroren = true
+  document.getElementById('webcam-knoppen-live').style.display = 'none'
+  document.getElementById('webcam-knoppen-foto').style.display = 'flex'
+}
+
+// Stap 2: gebruik de genomen foto
+window.gebruikFoto = function() {
+  const canvas = document.getElementById('webcam-canvas')
 
   fotoTexture = new THREE.CanvasTexture(canvas)
+  setupFotoTexture(fotoTexture)
   localStorage.setItem('mrj-foto', canvas.toDataURL())
   gekozenKarakter = 'foto'
   localStorage.setItem('mrj-karakter', 'foto')
 
   window.sluitWebcam()
-  document.getElementById('karakter-status').textContent = '✅ Foto genomen! Jouw gezicht zit nu op Mario!'
+  updateKarakterScherm()
 
   if (mario) { scene.remove(mario) }
   mario = maakMario()
@@ -1533,8 +1602,10 @@ window.neemEnBevestigFoto = function() {
 }
 
 window.opnieuwFoto = function() {
-  // Webcam draait al, preview update zichzelf live — niks te doen
-  // Gebruiker kan opnieuw positioneren en dan op OK klikken
+  fotoBevroren = false
+  document.getElementById('foto-preview').style.display = 'none'
+  document.getElementById('webcam-knoppen-live').style.display = 'flex'
+  document.getElementById('webcam-knoppen-foto').style.display = 'none'
 }
 
 // Laad opgeslagen foto bij opstarten
@@ -1544,9 +1615,16 @@ try {
     const img = new Image()
     img.onload = function() {
       const canvas = document.createElement('canvas')
-      canvas.width = 128; canvas.height = 128
-      canvas.getContext('2d').drawImage(img, 0, 0, 128, 128)
+      canvas.width = 256; canvas.height = 256
+      canvas.getContext('2d').drawImage(img, 0, 0, 256, 256)
       fotoTexture = new THREE.CanvasTexture(canvas)
+      setupFotoTexture(fotoTexture)
+      // Herbouw Mario met de geladen foto
+      if (mario) {
+        scene.remove(mario)
+        mario = maakMario()
+        mario.position.set(spelerX * TEGEL, 0.2, spelerY * TEGEL)
+      }
     }
     img.src = savedFoto
   }

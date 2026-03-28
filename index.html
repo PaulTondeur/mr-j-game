@@ -8,7 +8,7 @@
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { overflow: hidden; width: 100dvw; height: 100dvh; background: #000; position: fixed; top: 0; left: 0; }
     canvas.game-canvas { position: fixed !important; top: 0 !important; left: 0 !important; width: 100dvw !important; height: 100dvh !important; display: block; z-index: 1; }
-    #preview-3d { position: static !important; width: 60px !important; height: 80px !important; }
+    #preview-3d { position: static !important; }
     #hud {
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
@@ -94,21 +94,27 @@
     </div>
     <div id="bericht"></div>
   </div>
-  <div id="webcam-scherm" style="display:none;position:fixed;bottom:15px;right:15px;z-index:200;flex-direction:column;align-items:center;color:white;font-family:monospace;background:rgba(0,0,0,0.85);border-radius:12px;padding:10px;border:1px solid rgba(255,255,255,0.2);pointer-events:auto">
-    <div style="font-size:12px;margin-bottom:6px">📸 Gezicht in het rondje</div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <div style="position:relative;width:80px;height:80px;flex-shrink:0">
-        <video id="webcam-video" autoplay playsinline style="width:80px;height:80px;object-fit:cover;border-radius:50%;transform:scaleX(-1)"></video>
-        <div style="position:absolute;top:0;left:0;width:80px;height:80px;border:2px solid #ffd700;border-radius:50%;pointer-events:none"></div>
+  <div id="webcam-scherm" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.9);z-index:200;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:monospace;pointer-events:auto">
+    <div style="font-size:28px;margin-bottom:20px">📸 Neem een foto van jezelf!</div>
+    <div style="display:flex;gap:30px;align-items:center;margin-bottom:20px">
+      <div style="position:relative;flex-shrink:0;width:200px;height:200px">
+        <video id="webcam-video" autoplay playsinline style="width:200px;height:200px;object-fit:cover;border-radius:50%;transform:scaleX(-1)"></video>
+        <canvas id="foto-preview" width="256" height="256" style="display:none;position:absolute;top:0;left:0;width:200px;height:200px;border-radius:50%"></canvas>
+        <div style="position:absolute;top:0;left:0;width:200px;height:200px;border:3px solid #ffd700;border-radius:50%;pointer-events:none"></div>
       </div>
-      <div style="font-size:14px">→</div>
-      <canvas id="preview-3d" width="60" height="80" style="border-radius:6px;flex-shrink:0"></canvas>
+      <div style="font-size:28px">→</div>
+      <canvas id="preview-3d" width="450" height="630" style="border-radius:12px;flex-shrink:0;background:rgba(255,255,255,0.05);max-height:70vh"></canvas>
     </div>
-    <canvas id="webcam-canvas" width="128" height="128" style="display:none"></canvas>
-    <div style="display:flex;gap:6px;margin-top:8px">
-      <div onclick="window.neemEnBevestigFoto()" style="cursor:pointer;background:#44dd44;color:#000;padding:4px 10px;border-radius:6px;font-weight:bold;font-size:11px">✅ Gebruiken</div>
-      <div onclick="window.opnieuwFoto()" style="cursor:pointer;background:#ff8844;color:#000;padding:4px 10px;border-radius:6px;font-size:11px">🔄 Opnieuw</div>
-      <div onclick="window.sluitWebcam()" style="cursor:pointer;background:#555;color:white;padding:4px 10px;border-radius:6px;font-size:11px">✕</div>
+    <canvas id="webcam-canvas" width="256" height="256" style="display:none"></canvas>
+    <div style="font-size:14px;color:#aaa;margin-bottom:15px">Zet je gezicht in het rondje — je ziet live hoe het eruit ziet!</div>
+    <div id="webcam-knoppen-live" style="display:flex;gap:12px">
+      <div onclick="window.neemFoto()" style="cursor:pointer;background:#ffd700;color:#000;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:16px">📸 Neem foto</div>
+      <div onclick="window.sluitWebcam()" style="cursor:pointer;background:#555;color:white;padding:10px 24px;border-radius:8px;font-size:16px">✕ Sluiten</div>
+    </div>
+    <div id="webcam-knoppen-foto" style="display:none;gap:12px">
+      <div onclick="window.gebruikFoto()" style="cursor:pointer;background:#44dd44;color:#000;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:16px">✅ Gebruiken</div>
+      <div onclick="window.opnieuwFoto()" style="cursor:pointer;background:#ff8844;color:#000;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:16px">🔄 Opnieuw</div>
+      <div onclick="window.sluitWebcam()" style="cursor:pointer;background:#555;color:white;padding:10px 24px;border-radius:8px;font-size:16px">✕ Sluiten</div>
     </div>
   </div>
   <div id="karakter-scherm" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);z-index:100;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:monospace">
@@ -125,7 +131,8 @@
         <div style="font-size:11px;color:#aaa">Groen poppetje</div>
       </div>
       <div class="shop-item" onclick="window.openWebcam()" id="kar-foto" style="pointer-events:auto;cursor:pointer">
-        <div style="font-size:32px">📸</div>
+        <div id="kar-foto-preview" style="width:50px;height:50px;border-radius:50%;margin:0 auto 5px;background:#333;overflow:hidden;display:none"><img id="kar-foto-img" style="width:100%;height:100%;object-fit:cover"></div>
+        <div id="kar-foto-icon" style="font-size:32px">📸</div>
         <div>Eigen Foto</div>
         <div style="font-size:11px;color:#aaa">Jouw gezicht op Mario!</div>
       </div>
