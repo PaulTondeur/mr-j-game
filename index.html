@@ -18,11 +18,13 @@
     }
     #hud-balk {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
       padding: 12px 20px;
+      gap: 10px;
       background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);
     }
+    #hud-links { display: flex; align-items: center; gap: 15px; }
+    #hud-rechts { display: flex; align-items: center; gap: 8px; margin-left: auto; }
     #level-naam {
       color: white; font-size: 20px; font-weight: bold;
       text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
@@ -74,14 +76,21 @@
 <body>
   <div id="hud">
     <div id="hud-balk">
-      <div id="level-naam"></div>
-      <div id="score"></div>
-      <div id="pauze-hint" style="color:rgba(255,255,255,0.5); font-size:12px;">P = Pauze</div>
-      <div id="shop-knop" onclick="document.getElementById('shop-scherm').style.display='flex'">🛒 Shop</div>
-      <div id="karakter-knop" onclick="document.getElementById('karakter-scherm').style.display='flex'" style="color:#ff88ff;font-size:14px;cursor:pointer;pointer-events:auto;background:rgba(255,136,255,0.15);border:1px solid #ff88ff;border-radius:6px;padding:4px 10px;text-shadow:1px 1px 2px rgba(0,0,0,0.8)">🧑 Karakter</div>
-      <div id="opslag-knop" onclick="window.openOpslag()" style="color:#44ddff;font-size:14px;cursor:pointer;pointer-events:auto;background:rgba(68,221,255,0.15);border:1px solid #44ddff;border-radius:6px;padding:4px 10px;text-shadow:1px 1px 2px rgba(0,0,0,0.8)">🎒 Opslag</div>
-      <div id="gezondheid"></div>
-      <div id="levens"></div>
+      <div id="hud-links">
+        <div id="level-naam"></div>
+        <div id="score"></div>
+        <div id="levens"></div>
+        <div id="gezondheid"></div>
+      </div>
+      <div id="hud-rechts">
+        <div id="pauze-hint" style="color:rgba(255,255,255,0.5); font-size:12px;">P = Pauze</div>
+        <div id="home-knop" onclick="window.gaNaarHome()" style="color:#aaa;font-size:14px;cursor:pointer;pointer-events:auto;background:rgba(255,255,255,0.1);border:1px solid #aaa;border-radius:6px;padding:4px 10px;text-shadow:1px 1px 2px rgba(0,0,0,0.8)">🏠</div>
+        <div id="help-knop" onclick="window.toonHelp()" style="color:#fff;font-size:14px;font-weight:bold;cursor:pointer;pointer-events:auto;background:linear-gradient(135deg,#dda020,#ffcc00);border:2px solid #aa7010;border-radius:6px;padding:3px 9px;text-shadow:1px 1px 0 #aa7010;box-shadow:inset 0 -2px 0 #aa7010,0 2px 4px rgba(0,0,0,0.4)">?</div>
+        <div id="shop-knop" onclick="window.openMenu('shop-scherm')">🛒 Shop</div>
+        <div id="karakter-knop" onclick="window.openMenu('karakter-scherm')" style="color:#ff88ff;font-size:14px;cursor:pointer;pointer-events:auto;background:rgba(255,136,255,0.15);border:1px solid #ff88ff;border-radius:6px;padding:4px 10px;text-shadow:1px 1px 2px rgba(0,0,0,0.8)">🧑 Karakter</div>
+        <div id="opslag-knop" onclick="window.openMenu('opslag-scherm')" style="color:#44ddff;font-size:14px;cursor:pointer;pointer-events:auto;background:rgba(68,221,255,0.15);border:1px solid #44ddff;border-radius:6px;padding:4px 10px;text-shadow:1px 1px 2px rgba(0,0,0,0.8)">🎒 Opslag</div>
+        <div id="instellingen-knop" onclick="window.openMenu('instellingen-scherm')" style="color:#ccc;font-size:14px;cursor:pointer;pointer-events:auto;background:rgba(255,255,255,0.1);border:1px solid #888;border-radius:6px;padding:4px 10px;text-shadow:1px 1px 2px rgba(0,0,0,0.8)">⚙️</div>
+      </div>
     </div>
     <div id="bericht"></div>
   </div>
@@ -122,13 +131,13 @@
       </div>
     </div>
     <div id="karakter-status" style="font-size:14px;color:#44dd44;margin-bottom:15px"></div>
-    <div style="cursor:pointer;pointer-events:auto;color:#aaa;font-size:16px" onclick="document.getElementById('karakter-scherm').style.display='none'">✕ Sluiten</div>
+    <div style="cursor:pointer;pointer-events:auto;color:#aaa;font-size:16px" onclick="window.sluitMenu('karakter-scherm')">✕ Sluiten</div>
   </div>
   <div id="opslag-scherm" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);z-index:100;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:monospace">
     <div style="font-size:36px;margin-bottom:20px">🎒 OPSLAG</div>
     <div id="opslag-items" style="display:flex;flex-direction:column;align-items:center;gap:10px"></div>
     <div id="opslag-leeg" style="color:#aaa;font-size:16px;margin:20px">Je opslag is leeg</div>
-    <div style="margin-top:20px;cursor:pointer;pointer-events:auto;color:#aaa;font-size:16px" onclick="document.getElementById('opslag-scherm').style.display='none'">✕ Sluiten</div>
+    <div style="margin-top:20px;cursor:pointer;pointer-events:auto;color:#aaa;font-size:16px" onclick="window.sluitMenu('opslag-scherm')">✕ Sluiten</div>
   </div>
   <div id="shop-scherm" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);z-index:100;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:monospace">
     <div style="font-size:36px;margin-bottom:20px">🛒 SHOP</div>
@@ -144,12 +153,35 @@
       <div class="shop-prijs">1000 punten</div>
     </div>
     <div id="shop-status" style="margin-top:15px;font-size:14px;color:#aaa"></div>
-    <div style="margin-top:20px;cursor:pointer;pointer-events:auto;color:#aaa;font-size:16px" onclick="document.getElementById('shop-scherm').style.display='none'">✕ Sluiten</div>
+    <div style="margin-top:20px;cursor:pointer;pointer-events:auto;color:#aaa;font-size:16px" onclick="window.sluitMenu('shop-scherm')">✕ Sluiten</div>
+  </div>
+  <div id="instellingen-scherm" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);z-index:100;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:monospace">
+    <div style="font-size:36px;margin-bottom:25px">⚙️ INSTELLINGEN</div>
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center;pointer-events:auto;min-width:260px">
+      <div class="shop-item" onclick="window.toggleGeluid()" id="geluid-knop" style="pointer-events:auto;cursor:pointer;width:100%">
+        <div id="geluid-label">🔊 Geluid: AAN</div>
+      </div>
+      <div class="shop-item" onclick="window.toggleMoeilijkheid()" id="moeilijkheid-knop" style="pointer-events:auto;cursor:pointer;width:100%">
+        <div id="moeilijkheid-label">⚔️ Moeilijkheid: Normaal</div>
+      </div>
+      <div class="shop-item" onclick="window.gaNaarHome()" style="pointer-events:auto;cursor:pointer;width:100%">
+        <div>🏠 Terug naar Home</div>
+      </div>
+      <div class="shop-item" onclick="window.resetSpel()" style="pointer-events:auto;cursor:pointer;width:100%;border-color:#ff4444">
+        <div style="color:#ff6666">🗑 Reset Spel</div>
+        <div style="font-size:11px;color:#aa4444;margin-top:4px">Wist alle voortgang</div>
+      </div>
+    </div>
+    <div style="margin-top:20px;cursor:pointer;pointer-events:auto;color:#aaa;font-size:16px" onclick="window.sluitMenu('instellingen-scherm')">✕ Sluiten</div>
   </div>
   <div id="pauze-scherm" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.75);z-index:100;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:monospace">
     <div style="font-size:64px">⏸</div>
     <div style="font-size:42px;margin:20px 0;font-weight:bold">PAUZE</div>
-    <div style="font-size:18px;color:#aaa">Druk P om verder te gaan</div>
+    <div style="font-size:18px;color:#aaa;margin-bottom:20px">Druk P om verder te gaan</div>
+    <div style="display:flex;gap:12px;pointer-events:auto">
+      <div onclick="window.gaNaarHome()" style="cursor:pointer;background:rgba(255,255,255,0.1);border:1px solid #aaa;border-radius:8px;padding:10px 20px;font-size:16px;color:white">🏠 Home</div>
+      <div onclick="window.openMenu('instellingen-scherm')" style="cursor:pointer;background:rgba(255,255,255,0.1);border:1px solid #888;border-radius:8px;padding:10px 20px;font-size:16px;color:white">⚙️ Instellingen</div>
+    </div>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>

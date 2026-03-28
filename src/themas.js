@@ -321,4 +321,32 @@ export const themas = {
       }
     },
   },
+
+  achtervolging: {
+    gras: ['#3a3a2a', '#2d2d22'],    // donker, spannend
+    water: [20, 30, 50],              // donker water
+    rand: '#4a4a3a',
+    decoraties(ctx, kolom, rij, sx, sy, T, tijd) {
+      const seed = kolom * 7 + rij * 13
+      if (seed % 10 === 0) {
+        // Waarschuwingsbord
+        ctx.fillStyle = '#cc0000'
+        ctx.beginPath()
+        ctx.moveTo(sx + 20, sy + 5)
+        ctx.lineTo(sx + 10, sy + 22)
+        ctx.lineTo(sx + 30, sy + 22)
+        ctx.fill()
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 10px monospace'
+        ctx.textAlign = 'center'
+        ctx.fillText('!', sx + 20, sy + 20)
+      }
+    },
+    effect(ctx, breedte, hoogte, tijd) {
+      // Rood pulsend licht als spanning
+      const pulse = Math.sin(tijd * 3) * 0.03 + 0.03
+      ctx.fillStyle = `rgba(255,0,0,${pulse})`
+      ctx.fillRect(0, 0, breedte, hoogte)
+    },
+  },
 }
