@@ -169,33 +169,20 @@ const hudScore = document.getElementById('score')
 // === HELPERS ===
 function blokkert(cel) { return !cel || cel === '#' || cel === '~' }
 
-function isVrij(kaart, px, py) {
-  const m = 0.18
-  // Check centrum eerst
-  const centrum = kaart[Math.floor(py)]?.[Math.floor(px)]
-  if (blokkert(centrum)) return false
+function tegelVrij(cel, hoogte) {
+  if (!cel || cel === '~') return false
+  if (cel === '#') return hoogte >= 0.15
+  return true
+}
 
-  // Op een brug? Dan alleen de 2 relevante zijden checken (niet diagonaal)
-  if (centrum === '=') return true
+function isVrij(kaart, px, py, hoogte) {
+  const r = 0.22
 
-  // Check of een buur-tile een brug is — dan ook soepeler
-  const buurLinks = kaart[Math.floor(py)]?.[Math.floor(px - m)]
-  const buurRechts = kaart[Math.floor(py)]?.[Math.floor(px + m)]
-  const buurBoven = kaart[Math.floor(py - m)]?.[Math.floor(px)]
-  const buurOnder = kaart[Math.floor(py + m)]?.[Math.floor(px)]
-
-  // Als een directe buur een brug is, check alleen de as-richting (niet diagonaal)
-  if (buurLinks === '=' || buurRechts === '=' || buurBoven === '=' || buurOnder === '=') {
-    return !blokkert(buurLinks) && !blokkert(buurRechts) && !blokkert(buurBoven) && !blokkert(buurOnder)
+  function check(x, y) {
+    return tegelVrij(kaart[Math.floor(y)]?.[Math.floor(x)], hoogte)
   }
 
-  // Normaal: check 4 hoeken
-  return (
-    !blokkert(kaart[Math.floor(py - m)]?.[Math.floor(px - m)]) &&
-    !blokkert(kaart[Math.floor(py - m)]?.[Math.floor(px + m)]) &&
-    !blokkert(kaart[Math.floor(py + m)]?.[Math.floor(px - m)]) &&
-    !blokkert(kaart[Math.floor(py + m)]?.[Math.floor(px + m)])
-  )
+  return check(px, py) && check(px - r, py) && check(px + r, py) && check(px, py - r) && check(px, py + r)
 }
 
 function clearWereld() {
@@ -239,8 +226,8 @@ function bouwKaart(kaart) {
   for (let rij = 0; rij < kaart.length; rij++) {
     for (let kolom = 0; kolom < kaart[rij].length; kolom++) {
       const cel = kaart[rij][kolom]
-      const x = kolom * TEGEL
-      const z = rij * TEGEL
+      const x = (kolom + 0.5) * TEGEL
+      const z = (rij + 0.5) * TEGEL
 
       if (cel === '~') {
         const w = new THREE.Mesh(waterGeo, matWater)
@@ -1151,8 +1138,13 @@ function laadLevel(nummer) {
 }
 
 function zetCamera() {
-  camera.position.set(spelerX * TEGEL, 10, spelerY * TEGEL + 12)
-  camera.lookAt(spelerX * TEGEL, 0, spelerY * TEGEL)
+  if (cameraView === 'topdown') {
+    camera.position.set(spelerX * TEGEL, 25, spelerY * TEGEL)
+    camera.rotation.set(-Math.PI / 2, 0, 0)
+  } else {
+    camera.position.set(spelerX * TEGEL, 10, spelerY * TEGEL + 12)
+    camera.lookAt(spelerX * TEGEL, 0, spelerY * TEGEL)
+  }
 }
 
 function updateHUD() {
@@ -1205,6 +1197,7 @@ let schoenenAan = true // of de schoenen aangetrokken zijn
 let gekozenKarakter = localStorage.getItem('mrj-karakter') || 'mario' // mario, luigi, foto
 let fotoTexture = null // voor eigen foto gezicht
 let menuPauze = false // of het spel gepauzeerd is door een menu
+let cameraView = 'normaal' // 'normaal' of 'topdown'
 
 // Menu openen → pauzeert het spel
 window.openMenu = function(id) {
@@ -1320,7 +1313,8 @@ window.toonHelp = function() {
         '🪙 Pak alle muntjes!<br>❓ Loop tegen vraagtekens voor beloningen!<br><br>') +
     '<span style="font-size:14px;color:#aaa">Sneltoetsen:<br>' +
     'P=Pauze &nbsp; H=Home &nbsp; /=Help<br>' +
-    'S=Shop &nbsp; K=Karakter &nbsp; O=Opslag &nbsp; .=Instellingen</span><br>' +
+    'S=Shop &nbsp; K=Karakter &nbsp; O=Opslag &nbsp; .=Instellingen<br>' +
+    'T=Wissel camera (normaal/topdown)</span><br>' +
     '<div style="cursor:pointer;color:#ffd700;font-size:16px;margin-top:10px" onclick="window.sluitHelp()">OK, begrepen!</div>' +
     '</div>'
 }
@@ -1813,6 +1807,7 @@ function loop() {
     if (keys['s']) { keys['s'] = false; window.openMenu('shop-scherm') }
     if (keys['k']) { keys['k'] = false; window.openMenu('karakter-scherm') }
     if (keys['o']) { keys['o'] = false; window.openMenu('opslag-scherm') }
+    if (keys['t']) { keys['t'] = false; cameraView = cameraView === 'normaal' ? 'topdown' : 'normaal' }
   }
 
   if (scherm === 'level' && keys['p'] && !inputUit) {
@@ -1847,7 +1842,7 @@ function loop() {
     // Beweging
     const heeftSchoenenNu = scherm === 'level' && schoenenAan && (snelleSchoenen || snelleSchoenenAltijd)
     const schaal = dt * 60 // schaal naar 60fps-equivalent
-    const snelheid = (heeftSchoenenNu ? 0.17 : 0.07) * schaal
+    const snelheid = (heeftSchoenenNu ? 0.105 : 0.07) * schaal
     let dx = 0, dy = 0
     if (keys['ArrowUp']) dy -= snelheid
     if (keys['ArrowDown']) dy += snelheid
@@ -1861,14 +1856,36 @@ function loop() {
     if (keys[' '] && opGrond) { spelerVY = 0.09; opGrond = false }
     spelerVY -= 0.006 * schaal
     spelerHoogte += spelerVY * schaal
-    if (spelerHoogte <= 0) { spelerHoogte = 0; spelerVY = 0; opGrond = true }
+    // Land op de grond of op een muur
+    const opMuur = actieveKaart && actieveKaart[Math.floor(spelerY)]?.[Math.floor(spelerX)] === '#'
+    const grondHoogte = opMuur ? 0.3 : 0
+    // Van muur afgelopen? Begin met vallen (niet snappen)
+    if (opGrond && !opMuur && spelerHoogte > 0) { opGrond = false }
+    if (spelerHoogte <= grondHoogte) { spelerHoogte = grondHoogte; spelerVY = 0; opGrond = true }
 
-    // Collision
+    // Collision — per as apart, in kleine stappen
     const kaart = actieveKaart
     if (kaart) {
-      if (isVrij(kaart, spelerX + dx, spelerY + dy)) { spelerX += dx; spelerY += dy }
-      else if (isVrij(kaart, spelerX + dx, spelerY)) { spelerX += dx }
-      else if (isVrij(kaart, spelerX, spelerY + dy)) { spelerY += dy }
+      // X-as
+      if (dx !== 0) {
+        const stap = Math.sign(dx) * Math.min(Math.abs(dx), 0.05)
+        let rest = dx
+        while (Math.abs(rest) > 0.001) {
+          const s = Math.abs(rest) < Math.abs(stap) ? rest : stap
+          if (isVrij(kaart, spelerX + s, spelerY, spelerHoogte)) { spelerX += s; rest -= s }
+          else break
+        }
+      }
+      // Y-as
+      if (dy !== 0) {
+        const stap = Math.sign(dy) * Math.min(Math.abs(dy), 0.05)
+        let rest = dy
+        while (Math.abs(rest) > 0.001) {
+          const s = Math.abs(rest) < Math.abs(stap) ? rest : stap
+          if (isVrij(kaart, spelerX, spelerY + s, spelerHoogte)) { spelerY += s; rest -= s }
+          else break
+        }
+      }
     }
 
     // Richting
@@ -1926,9 +1943,9 @@ function loop() {
         if (afst < 8 && afst > 0.5) {
           const nx = s.x + (dx / afst) * sanderSnelheid
           const ny = s.y + (dy / afst) * sanderSnelheid
-          if (isVrij(actieveKaart, nx, ny)) { s.x = nx; s.y = ny }
-          else if (isVrij(actieveKaart, nx, s.y)) { s.x = nx }
-          else if (isVrij(actieveKaart, s.x, ny)) { s.y = ny }
+          if (isVrij(actieveKaart, nx, ny, 0)) { s.x = nx; s.y = ny }
+          else if (isVrij(actieveKaart, nx, s.y, 0)) { s.x = nx }
+          else if (isVrij(actieveKaart, s.x, ny, 0)) { s.y = ny }
         }
 
         // Springen (random, vaker als dichtbij)
@@ -1997,8 +2014,9 @@ function loop() {
           break
         }
 
-        // Te oud? Verwijderen
-        if (sh.leeftijd > 4) {
+        // Tegen muur/water? Verwijderen
+        const shCel = actieveKaart?.[Math.floor(sh.y)]?.[Math.floor(sh.x)]
+        if (!tegelVrij(shCel, 0) || sh.leeftijd > 4) {
           scene.remove(sh.mesh)
           shawarmaData.splice(i, 1)
         }
@@ -2107,11 +2125,11 @@ function loop() {
           const nx = achtervolger.x + (adx / aAfst) * aSnelheid
           const ny = achtervolger.y + (ady / aAfst) * aSnelheid
           const kaart = actieveKaart
-          if (isVrij(kaart, nx, ny)) {
+          if (isVrij(kaart, nx, ny, 0)) {
             achtervolger.x = nx; achtervolger.y = ny
-          } else if (isVrij(kaart, nx, achtervolger.y)) {
+          } else if (isVrij(kaart, nx, achtervolger.y, 0)) {
             achtervolger.x = nx
-          } else if (isVrij(kaart, achtervolger.x, ny)) {
+          } else if (isVrij(kaart, achtervolger.x, ny, 0)) {
             achtervolger.y = ny
           }
         }
@@ -2210,8 +2228,13 @@ function loop() {
 
   // Camera
   const cx = spelerX * TEGEL, cz = spelerY * TEGEL
-  camera.position.lerp(new THREE.Vector3(cx, 10, cz + 12), 0.05)
-  camera.lookAt(cx, 0, cz)
+  if (cameraView === 'topdown') {
+    camera.position.lerp(new THREE.Vector3(cx, 25, cz), 0.05)
+    camera.rotation.set(-Math.PI / 2, 0, 0)
+  } else {
+    camera.position.lerp(new THREE.Vector3(cx, 10, cz + 12), 0.05)
+    camera.lookAt(cx, 0, cz)
+  }
 
   // Zon meebewegen
   zon.position.set(cx + 10, 15, cz - 5)
