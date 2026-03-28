@@ -4,7 +4,7 @@ import { levels } from './levels.js'
 import { themas } from './themas.js'
 
 // === MODEL LOADER ===
-const glbPad = '/src/models/kenney_platformer-kit/Models/GLB format/'
+const glbPad = import.meta.env.BASE_URL + 'models/kenney/'
 const loader = new GLTFLoader()
 const modelCache = {}
 
@@ -21,8 +21,8 @@ function laadModel(naam) {
 const TEGEL = 2
 
 // Geluiden
-const boerAudio = new Audio('/src/geluid/boer.m4a')
-const bahSanderAudio = new Audio('/src/geluid/bah-sander.m4a')
+const boerAudio = new Audio(import.meta.env.BASE_URL + 'geluid/boer.m4a')
+const bahSanderAudio = new Audio(import.meta.env.BASE_URL + 'geluid/bah-sander.m4a')
 // Versterkt via Web Audio
 let bahGain = null
 try {
