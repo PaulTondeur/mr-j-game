@@ -84,6 +84,7 @@
       </div>
       <div id="hud-rechts">
         <div id="pauze-hint" style="color:rgba(255,255,255,0.5); font-size:12px;">P = Pauze</div>
+        <div id="inzoom-knop" onclick="window.toggleInzoom()" style="color:#fff;font-size:14px;cursor:pointer;pointer-events:auto;background:rgba(255,255,255,0.15);border:1px solid #fff;border-radius:6px;padding:4px 10px;text-shadow:1px 1px 2px rgba(0,0,0,0.8)">🔍 Inzoomen</div>
         <div id="home-knop" onclick="window.gaNaarHome()" style="color:#aaa;font-size:14px;cursor:pointer;pointer-events:auto;background:rgba(255,255,255,0.1);border:1px solid #aaa;border-radius:6px;padding:4px 10px;text-shadow:1px 1px 2px rgba(0,0,0,0.8)">🏠</div>
         <div id="help-knop" onclick="window.toonHelp()" style="color:#fff;font-size:14px;font-weight:bold;cursor:pointer;pointer-events:auto;background:linear-gradient(135deg,#dda020,#ffcc00);border:2px solid #aa7010;border-radius:6px;padding:3px 9px;text-shadow:1px 1px 0 #aa7010;box-shadow:inset 0 -2px 0 #aa7010,0 2px 4px rgba(0,0,0,0.4)">?</div>
         <div id="shop-knop" onclick="window.openMenu('shop-scherm')">🛒 Shop</div>
@@ -162,6 +163,11 @@
     <div class="shop-item" id="shop-altijd" onclick="window.koopSchoenen('altijd')">
       <div>👟✨ Snelle Schoenen FOREVER</div>
       <div style="font-size:12px;color:#aaa;margin:5px 0">Voor altijd sneller lopen</div>
+      <div class="shop-prijs">1000 punten</div>
+    </div>
+    <div class="shop-item" id="shop-terug" onclick="window.koopTerugLopen()">
+      <div>🔙 Terug Lopen</div>
+      <div style="font-size:12px;color:#aaa;margin:5px 0">Mag terug lopen op het startscherm</div>
       <div class="shop-prijs">1000 punten</div>
     </div>
     <div id="shop-status" style="margin-top:15px;font-size:14px;color:#aaa"></div>
