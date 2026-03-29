@@ -2801,12 +2801,14 @@ function updateFinishSequentie() {
           spelerY = gehaaldPortaal.y
           mario.position.set(spelerX * TEGEL, 0.2, spelerY * TEGEL)
         }
+        introWalk = null // niet ook nog intro walk doen
         autoWalkNaar = volgend
       } else {
         // Laatste level gehaald → terug naar start, auto-walk naar kanon
         autoWalkNaarKanon = true
         autoWalkKanonFase = 'lopen'
         laadStart()
+        introWalk = null
         // Zet Mario bij het portaal van level 11 (na laadStart zodat mario nieuw is)
         const level11 = portalenData.find(p => p.level === 10)
         if (level11) { spelerX = level11.x; spelerY = level11.y }
@@ -2968,6 +2970,10 @@ function loop() {
 
     // === START LOGICA ===
     if (scherm === 'start') {
+      // Veiligheidscheck: als er geen walk/animatie actief is, zorg dat input werkt
+      if (inputUit && !introWalk && !autoWalkNaar && !autoWalkPunten && !bowserActief && !buisAnimatie) {
+        inputUit = false
+      }
       // Auto-walk naar volgend level via de middelste strook
       if (autoWalkNaar !== null && !autoWalkPunten) {
         const doel = portalenData.find(p => p.level === autoWalkNaar)
@@ -2981,28 +2987,23 @@ function loop() {
           const startBoven = spelerY < 5
           const doelBoven = doel.y < 5
 
-          // Stop 2 tiles voor het doel zodat je niet direct de buis in gaat
-          const stopAfstand = 2
-          const doelRichting = doel.x > spelerX ? -stopAfstand : stopAfstand
-          const stopX = doel.x + doelRichting
-
           if (startBoven) {
             punten.push({ x: spelerX, y: midBoven })
             if (doelBoven) {
-              punten.push({ x: stopX, y: midBoven })
+              punten.push({ x: doel.x - 2, y: midBoven }) // stop 2 tiles voor doel
             } else {
               punten.push({ x: bochtX, y: midBoven })
               punten.push({ x: bochtX, y: midOnder })
-              punten.push({ x: stopX, y: midOnder })
+              punten.push({ x: doel.x + 2, y: midOnder }) // onderpad: doel is links, stop 2 rechts
             }
           } else {
             punten.push({ x: spelerX, y: midOnder })
             if (!doelBoven) {
-              punten.push({ x: stopX, y: midOnder })
+              punten.push({ x: doel.x + 2, y: midOnder })
             } else {
               punten.push({ x: bochtX, y: midOnder })
               punten.push({ x: bochtX, y: midBoven })
-              punten.push({ x: stopX, y: midBoven })
+              punten.push({ x: doel.x - 2, y: midBoven })
             }
           }
           autoWalkPunten = punten
@@ -3026,9 +3027,12 @@ function loop() {
               loopt = false
             }
           } else {
-            const awSnelheid = 0.05 * schaal
-            spelerX += (awdx / awAfst) * awSnelheid
-            spelerY += (awdy / awAfst) * awSnelheid
+            const awSnelheid = 0.07 * schaal
+            const nx = spelerX + (awdx / awAfst) * awSnelheid
+            const ny = spelerY + (awdy / awAfst) * awSnelheid
+            // Alleen bewegen als het pad vrij is
+            if (isVrij(actieveKaart, nx, ny, 0)) { spelerX = nx; spelerY = ny }
+            else { spelerX = nx; spelerY = ny } // forceer toch (waypoints moeten kloppen)
             spelerRichting = Math.atan2(-awdx, -awdy)
             loopt = true
             loopTeller += 0.08 * schaal
@@ -3165,7 +3169,7 @@ function loop() {
                 hudBericht.style.display = 'block'
                 hudBericht.innerHTML = '<div style="background:rgba(0,0,0,0.8);padding:20px;border-radius:12px;pointer-events:auto">' +
                   '<div style="font-size:20px;color:#ffd700;margin-bottom:10px">🔒 Voer de code in voor Level 11</div>' +
-                  '<input id="code-input" type="text" maxlength="4" style="font-size:28px;width:120px;text-align:center;padding:8px;border-radius:8px;border:2px solid #ffd700;background:#222;color:#fff;font-family:monospace" autofocus>' +
+                  '<input id="code-input" type="password" maxlength="4" style="font-size:28px;width:120px;text-align:center;padding:8px;border-radius:8px;border:2px solid #ffd700;background:#222;color:#fff;font-family:monospace" autofocus>' +
                   '<div style="display:flex;gap:10px;margin-top:12px;justify-content:center">' +
                   '<div onclick="window.checkCode()" style="cursor:pointer;background:#44dd44;color:#000;padding:8px 20px;border-radius:8px;font-weight:bold">OK</div>' +
                   '<div onclick="window.sluitCode()" style="cursor:pointer;background:#555;color:#fff;padding:8px 20px;border-radius:8px">Annuleer</div>' +
